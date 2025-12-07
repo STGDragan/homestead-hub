@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Homestead Hub</title>
+    <!-- Fonts: Merriweather (Serif headers) and Lato (Humanist Sans body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              serif: ['Merriweather', 'serif'],
+              sans: ['Lato', 'sans-serif'],
+            },
+            colors: {
+              earth: {
+                50: '#fcfaf8',
+                100: '#f5f0eb', // Main BG Light
+                200: '#e8e0d5', // Borders Light
+                300: '#d6c4b0',
+                400: '#bfa082',
+                500: '#a68059',
+                600: '#8a6645', // Text secondary
+                700: '#705036',
+                800: '#5c412f', // Text primary
+                900: '#4d3628',
+              },
+              leaf: {
+                50: '#f0fdf4',
+                100: '#dcfce7',
+                500: '#22c55e',
+                600: '#16a34a',
+                700: '#15803d', // Primary Action
+                800: '#166534',
+                900: '#14532d',
+              },
+              clay: {
+                500: '#f59e0b', // Warnings/Accents
+                600: '#d97706',
+              },
+              // New Deep Warm Charcoal Palette for Dark Mode
+              night: {
+                50: '#fafaf9',
+                100: '#f5f5f4',
+                200: '#e7e5e4',
+                300: '#d6d3d1',
+                400: '#a8a29e',
+                500: '#78716c',
+                600: '#57534e',
+                700: '#44403c', // Borders
+                800: '#292524', // Secondary Surfaces
+                900: '#1c1917', // Cards / Sidebar
+                950: '#0c0a09', // Main Background
+              }
+            },
+            boxShadow: {
+              'soft': '0 4px 20px -2px rgba(92, 65, 47, 0.08)',
+              'card': '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1)',
+            }
+          }
+        }
+      }
+    </script>
+    <script>
+        // Check for saved theme or system preference
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark')
+        } else {
+            document.documentElement.classList.remove('dark')
+        }
+    </script>
+    <style>
+      /* Custom Scrollbar for a cleaner look */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #d6c4b0; 
+        border-radius: 3px;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: #44403c; /* night-700 */
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #bfa082; 
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.1",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/"
+  }
+}
+</script>
+</head>
+  <body class="bg-earth-100 text-earth-800 dark:bg-night-950 dark:text-earth-100 font-sans antialiased selection:bg-leaf-200 selection:text-leaf-900 transition-colors duration-200">
+    <div id="root"></div>
+  </body>
+</html>

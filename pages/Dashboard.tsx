@@ -1,0 +1,212 @@
+import React, { useEffect, useState } from 'react';
+import { Layout } from '../components/Layout';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { Plus, CloudRain, Sun, Sprout, AlertCircle, Database, Smartphone, BookOpen } from 'lucide-react';
+import { dbService } from '../services/db';
+import { Task, UserProfile } from '../types';
+import { AdPlacement } from '../components/monetization/AdPlacement';
+import { AgentDashboardWidget } from '../components/ai/AgentDashboardWidget';
+
+const WeatherWidget = () => (
+  <Card className="bg-gradient-to-br from-leaf-700 to-leaf-900 text-white border-none shadow-lg">
+    <div className="flex justify-between items-start">
+      <div>
+        <p className="text-leaf-100 text-sm font-bold uppercase tracking-wider mb-1">Current Conditions</p>
+        <h2 className="text-3xl font-serif font-bold">Partly Cloudy</h2>
+        <div className="flex items-baseline gap-2 mt-2">
+          <span className="text-5xl font-bold tracking-tighter">72°</span>
+          <span className="text-leaf-200">High 78° / Low 65°</span>
+        </div>
+      </div>
+      <CloudRain size={48} className="text-leaf-300 opacity-80" />
+    </div>
+    <div className="mt-6 flex gap-6 text-sm font-medium text-leaf-100 border-t border-leaf-600/50 pt-4">
+      <div className="flex items-center gap-2">
+        <Sun size={16} />
+        <span>UV Index: 4 (Mod)</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <CloudRain size={16} />
+        <span>Humidity: 45%</span>
+      </div>
+    </div>
+  </Card>
+);
+
+const TaskList = () => {
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    const loadTasks = async () => {
+      try {
+         const allTasks = await dbService.getAll<Task>('tasks');
+         const pending = allTasks.filter(t => !t.completed).slice(0, 3);
+         setTasks(pending);
+      } catch (e) {
+         console.error(e);
+      }
+    };
+    loadTasks();
+  }, []);
+
+  if (tasks.length === 0) {
+    return (
+        <div className="p-4 bg-earth-50 dark:bg-night-800 rounded-xl border border-earth-200 dark:border-night-700 text-center text-earth-500 dark:text-night-400 text-sm">
+            No pending tasks. Enjoy your day!
+        </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {tasks.map(task => (
+        <div key={task.id} className="flex items-center p-3 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 rounded-xl gap-3 shadow-sm">
+          <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${task.completed ? 'bg-leaf-600 border-leaf-600' : 'border-earth-300 dark:border-night-600'}`}>
+            {task.completed && <Plus className="rotate-45 text-white" size={16} />}
+          </div>
+          <div className="flex-1">
+            <p className={`font-bold text-earth-800 dark:text-earth-100 ${task.completed ? 'line-through text-earth-400 dark:text-night-500' : ''}`}>{task.title}</p>
+            <p className="text-xs text-earth-500 dark:text-night-400 capitalize">{task.category}</p>
+          </div>
+          {task.syncStatus === 'pending' && (
+            <div className="w-2 h-2 rounded-full bg-clay-500" title="Sync Pending" />
+          )}
+        </div>
+      ))}
+      <Button variant="ghost" size="sm" className="w-full mt-2">View All Tasks</Button>
+    </div>
+  );
+};
+
+export const Dashboard: React.FC = () => {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+        const user = await dbService.get<UserProfile>('user_profile', 'main_user');
+        if (user) setProfile(user);
+    };
+    loadProfile();
+  }, []);
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      
+      <div className="mb-4">
+         <AdPlacement placementId="dashboard_top_banner" />
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+         <div>
+            <h1 className="text-3xl font-serif font-bold text-earth-900 dark:text-earth-100">
+                {profile ? `Welcome, ${profile.name}` : 'Homestead Hub'}
+            </h1>
+            <p className="text-earth-600 dark:text-night-300">
+                {profile 
+                    ? `Your ${profile.experienceLevel} homestead dashboard.` 
+                    : 'Manage your land, animals, and tasks.'}
+            </p>
+         </div>
+         <div className="flex items-center gap-2 text-sm font-bold text-earth-500 dark:text-night-300 bg-earth-200 dark:bg-night-800 px-3 py-1 rounded-full">
+            <span>{new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+            {profile?.hardinessZone && <span>• Zone {profile.hardinessZone}</span>}
+         </div>
+      </div>
+      
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Button variant="secondary" className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500">
+          <div className="bg-leaf-100 dark:bg-leaf-900/30 text-leaf-700 dark:text-leaf-400 p-2 rounded-full mb-2">
+            <Plus size={24} />
+          </div>
+          <span className="text-sm">New Task</span>
+        </Button>
+        <Button variant="secondary" className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500">
+          <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 p-2 rounded-full mb-2">
+            <Sprout size={24} />
+          </div>
+          <span className="text-sm">Log Harvest</span>
+        </Button>
+         <Button variant="secondary" className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500">
+          <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 p-2 rounded-full mb-2">
+            <Database size={24} />
+          </div>
+          <span className="text-sm">Sync Status</span>
+        </Button>
+        <Button variant="secondary" className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500">
+          <div className="bg-stone-100 dark:bg-night-800 text-stone-700 dark:text-night-300 p-2 rounded-full mb-2">
+            <Smartphone size={24} />
+          </div>
+          <span className="text-sm">Scan Photo</span>
+        </Button>
+      </div>
+
+      <AgentDashboardWidget />
+
+      <div className="grid md:grid-cols-3 gap-8">
+        <div className="md:col-span-2 space-y-8">
+          <section>
+            <h2 className="text-xl font-serif font-bold text-earth-900 dark:text-earth-100 mb-4">Today's Weather</h2>
+            <WeatherWidget />
+          </section>
+
+          <section>
+            <h2 className="text-xl font-serif font-bold text-earth-900 dark:text-earth-100 mb-4">Priority Tasks</h2>
+            <TaskList />
+          </section>
+          
+          <section>
+             <AdPlacement placementId="seasonal_panel" />
+          </section>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-900/30">
+            <div className="flex gap-3">
+              <AlertCircle className="text-amber-600 dark:text-amber-400 shrink-0" />
+              <div>
+                <h4 className="font-bold text-amber-800 dark:text-amber-100">Frost Warning</h4>
+                <p className="text-sm text-amber-700 dark:text-amber-200/80 mt-1">Temperatures dropping to 30°F tonight. Cover sensitive crops.</p>
+              </div>
+            </div>
+          </Card>
+
+          <AdPlacement placementId="dashboard_feature_block" />
+
+          <Card className="bg-earth-50 dark:bg-night-800 border-earth-200 dark:border-night-700">
+            <CardHeader>
+              <CardTitle>Quick Stats</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div className="bg-white dark:bg-night-900 p-3 rounded-xl border border-earth-100 dark:border-night-700">
+                  <p className="text-2xl font-serif font-bold text-earth-800 dark:text-earth-100">12</p>
+                  <p className="text-xs text-earth-500 dark:text-night-400 uppercase font-bold">Eggs Today</p>
+                </div>
+                <div className="bg-white dark:bg-night-900 p-3 rounded-xl border border-earth-100 dark:border-night-700">
+                  <p className="text-2xl font-serif font-bold text-earth-800 dark:text-earth-100">5</p>
+                  <p className="text-xs text-earth-500 dark:text-night-400 uppercase font-bold">Tasks Due</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {profile && (
+              <Card className="bg-leaf-50 dark:bg-leaf-900/10 border-leaf-200 dark:border-leaf-900/30">
+                  <h4 className="font-bold text-leaf-900 dark:text-leaf-200 mb-2 text-sm">Homestead Tip</h4>
+                  <p className="text-xs text-leaf-800 dark:text-leaf-300 leading-relaxed">
+                      {profile.experienceLevel === 'beginner' 
+                        ? "Start small! Focus on one garden bed and master it before expanding."
+                        : "Consider crop rotation this season to improve soil health and reduce pests."}
+                  </p>
+              </Card>
+          )}
+        </div>
+      </div>
+      
+      <div className="mt-8">
+         <AdPlacement placementId="footer_banner" />
+      </div>
+    </div>
+  );
+};

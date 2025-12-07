@@ -1,0 +1,304 @@
+
+
+
+import React, { useEffect, useState } from 'react';
+import { dbService } from '../../services/db';
+import { UserProfile, AuthUser } from '../../types';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Card } from '../../components/ui/Card';
+import { BillingTab } from './BillingTab'; 
+import { SecuritySettings } from './SecuritySettings';
+import { DataManagementTab } from './DataManagementTab'; 
+import { IntegrationsTab } from './IntegrationsTab';
+import { AgentSettings } from '../../components/ai/AgentSettings';
+import { User, MapPin, Award, Target, Save, LogOut, CreditCard, Lock, Brain, Database, Link as LinkIcon } from 'lucide-react';
+import { EXPERIENCE_LEVELS, HOMESTEAD_GOALS } from '../../constants';
+import { authService } from '../../services/auth';
+
+export const SettingsDashboard: React.FC = () => {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'security' | 'ai' | 'data' | 'integrations'>('profile');
+  
+  const [formData, setFormData] = useState<Partial<UserProfile>>({});
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    const user = await dbService.get<UserProfile>('user_profile', 'main_user');
+    const auth = await authService.getCurrentUser();
+    if (user) {
+       setProfile(user);
+       setFormData(user);
+    }
+    setAuthUser(auth);
+  };
+
+  const handleSave = async () => {
+    if (!profile) return;
+    const updated: UserProfile = {
+       ...profile,
+       ...formData,
+       updatedAt: Date.now(),
+       syncStatus: 'pending' as const
+    };
+    await dbService.put('user_profile', updated);
+    setProfile(updated);
+    setIsEditing(false);
+  };
+
+  const handleLogout = () => {
+      authService.logout();
+  };
+
+  if (!profile) return <div className="p-8">Loading profile...</div>;
+
+  const isOwner = authService.hasRole(authUser, 'owner');
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-serif font-bold text-earth-900 dark:text-earth-100">Settings</h1>
+          <p className="text-earth-600 dark:text-night-400">Manage your profile and app preferences.</p>
+        </div>
+        {activeTab === 'profile' && (
+            isEditing ? (
+            <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => { setIsEditing(false); setFormData(profile); }}>Cancel</Button>
+                <Button onClick={handleSave} icon={<Save size={18} />}>Save Changes</Button>
+            </div>
+            ) : (
+            <Button variant="outline" onClick={() => setIsEditing(true)}>Edit Profile</Button>
+            )
+        )}
+      </div>
+
+      <div className="flex gap-4 border-b border-earth-200 dark:border-night-800 overflow-x-auto pb-1">
+         <button 
+            onClick={() => setActiveTab('profile')}
+            className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'profile' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
+         >
+            Profile & Prefs
+         </button>
+         
+         {isOwner && (
+             <button 
+                onClick={() => setActiveTab('billing')}
+                className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'billing' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
+             >
+                Subscription
+             </button>
+         )}
+
+         {isOwner && (
+             <button 
+                onClick={() => setActiveTab('security')}
+                className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'security' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
+             >
+                Security
+             </button>
+         )}
+
+         <button 
+            onClick={() => setActiveTab('integrations')}
+            className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'integrations' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
+         >
+            <LinkIcon size={14} /> Integrations
+         </button>
+         <button 
+            onClick={() => setActiveTab('data')}
+            className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'data' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
+         >
+            <Database size={14} /> Data
+         </button>
+         <button 
+            onClick={() => setActiveTab('ai')}
+            className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'ai' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
+         >
+            <Brain size={14} /> AI Agents
+         </button>
+      </div>
+
+      {activeTab === 'profile' && (
+        <>
+            <div className="grid md:grid-cols-2 gap-6">
+                <Card className="space-y-6">
+                    <h2 className="font-bold text-lg text-earth-800 dark:text-earth-100 flex items-center gap-2 border-b border-earth-100 dark:border-night-800 pb-2">
+                    <User size={20} className="text-leaf-600" /> Basic Info
+                    </h2>
+                    
+                    <div className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Display Name</label>
+                        {isEditing ? (
+                            <Input 
+                                value={formData.name || ''}
+                                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                            />
+                        ) : (
+                            <p className="text-lg font-bold text-earth-900 dark:text-earth-100">{profile.name}</p>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Zip Code</label>
+                            {isEditing ? (
+                                <Input 
+                                value={formData.zipCode || ''}
+                                onChange={e => setFormData({ ...formData, zipCode: e.target.value })}
+                                />
+                            ) : (
+                                <p className="text-earth-800 dark:text-earth-200 font-medium flex items-center gap-1"><MapPin size={14}/> {profile.zipCode}</p>
+                            )}
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Hardiness Zone</label>
+                            {isEditing ? (
+                                <Input 
+                                value={formData.hardinessZone || ''}
+                                onChange={e => setFormData({ ...formData, hardinessZone: e.target.value })}
+                                />
+                            ) : (
+                                <p className="text-earth-800 dark:text-earth-200 font-medium">{profile.hardinessZone || 'Unknown'}</p>
+                            )}
+                        </div>
+                    </div>
+                    </div>
+                </Card>
+
+                <Card className="space-y-6">
+                    <h2 className="font-bold text-lg text-earth-800 dark:text-earth-100 flex items-center gap-2 border-b border-earth-100 dark:border-night-800 pb-2">
+                    <Target size={20} className="text-amber-600" /> Homestead Profile
+                    </h2>
+
+                    <div>
+                    <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-2">Experience Level</label>
+                    {isEditing ? (
+                        <div className="flex gap-2">
+                            {EXPERIENCE_LEVELS.map(l => (
+                                <button
+                                key={l.id}
+                                onClick={() => setFormData({ ...formData, experienceLevel: l.id })}
+                                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                                    formData.experienceLevel === l.id 
+                                    ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-500 text-amber-900 dark:text-amber-100' 
+                                    : 'bg-white dark:bg-night-800 border-earth-200 dark:border-night-700 text-earth-600 dark:text-night-300 hover:bg-earth-50 dark:hover:bg-night-700'
+                                }`}
+                                >
+                                {l.label}
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-earth-800 dark:text-earth-200 font-bold bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg w-fit">
+                            <Award size={16} className="text-amber-600" /> 
+                            <span className="capitalize">{profile.experienceLevel}</span>
+                        </div>
+                    )}
+                    </div>
+
+                    <div>
+                    <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-2">Primary Goals</label>
+                    <div className="flex flex-wrap gap-2">
+                        {isEditing ? (
+                            HOMESTEAD_GOALS.map(g => (
+                                <button
+                                key={g.id}
+                                onClick={() => {
+                                    const goals = formData.goals || [];
+                                    if (goals.includes(g.id)) setFormData({ ...formData, goals: goals.filter(x => x !== g.id) });
+                                    else setFormData({ ...formData, goals: [...goals, g.id] });
+                                }}
+                                className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                                    formData.goals?.includes(g.id) 
+                                    ? 'bg-earth-800 text-white border-earth-800 dark:bg-leaf-600 dark:border-leaf-600' 
+                                    : 'bg-white dark:bg-night-800 text-earth-600 dark:text-night-300 border-earth-200 dark:border-night-700'
+                                }`}
+                                >
+                                {g.label}
+                                </button>
+                            ))
+                        ) : (
+                            profile.goals.map(g => (
+                                <span key={g} className="bg-earth-100 dark:bg-night-800 text-earth-700 dark:text-earth-300 px-3 py-1 rounded-full text-xs font-bold border border-earth-200 dark:border-night-700">
+                                {HOMESTEAD_GOALS.find(hg => hg.id === g)?.label || g}
+                                </span>
+                            ))
+                        )}
+                    </div>
+                    </div>
+                </Card>
+
+                <Card className="md:col-span-2 space-y-4">
+                    <h2 className="font-bold text-lg text-earth-800 dark:text-earth-100 border-b border-earth-100 dark:border-night-800 pb-2">App Preferences</h2>
+                    <div className="grid md:grid-cols-3 gap-6">
+                        <div className="flex items-center justify-between p-3 bg-earth-50 dark:bg-night-800 rounded-xl border border-transparent dark:border-night-700">
+                            <span className="text-sm font-bold text-earth-700 dark:text-earth-300">Organic Only Suggestions</span>
+                            {isEditing ? (
+                            <input 
+                                type="checkbox" 
+                                className="w-5 h-5 rounded text-leaf-600 focus:ring-leaf-500 bg-white dark:bg-night-700 border-earth-300 dark:border-night-500"
+                                checked={formData.preferences?.organicOnly}
+                                onChange={e => setFormData({ ...formData, preferences: { ...formData.preferences!, organicOnly: e.target.checked }})}
+                            />
+                            ) : (
+                            <span className={profile.preferences.organicOnly ? "text-leaf-600 font-bold" : "text-earth-400"}>{profile.preferences.organicOnly ? "Yes" : "No"}</span>
+                            )}
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-earth-50 dark:bg-night-800 rounded-xl border border-transparent dark:border-night-700">
+                            <span className="text-sm font-bold text-earth-700 dark:text-earth-300">Use Metric Units</span>
+                            {isEditing ? (
+                            <input 
+                                type="checkbox" 
+                                className="w-5 h-5 rounded text-leaf-600 focus:ring-leaf-500 bg-white dark:bg-night-700 border-earth-300 dark:border-night-500"
+                                checked={formData.preferences?.useMetric}
+                                onChange={e => setFormData({ ...formData, preferences: { ...formData.preferences!, useMetric: e.target.checked }})}
+                            />
+                            ) : (
+                            <span className={profile.preferences.useMetric ? "text-leaf-600 font-bold" : "text-earth-400"}>{profile.preferences.useMetric ? "Yes" : "No"}</span>
+                            )}
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-earth-50 dark:bg-night-800 rounded-xl border border-transparent dark:border-night-700">
+                            <span className="text-sm font-bold text-earth-700 dark:text-earth-300">Push Notifications</span>
+                            {isEditing ? (
+                            <input 
+                                type="checkbox" 
+                                className="w-5 h-5 rounded text-leaf-600 focus:ring-leaf-500 bg-white dark:bg-night-700 border-earth-300 dark:border-night-500"
+                                checked={formData.preferences?.enableNotifications}
+                                onChange={e => setFormData({ ...formData, preferences: { ...formData.preferences!, enableNotifications: e.target.checked }})}
+                            />
+                            ) : (
+                            <span className={profile.preferences.enableNotifications ? "text-leaf-600 font-bold" : "text-earth-400"}>{profile.preferences.enableNotifications ? "On" : "Off"}</span>
+                            )}
+                        </div>
+                    </div>
+                </Card>
+            </div>
+            
+            <div className="pt-8 border-t border-earth-200 dark:border-night-800">
+                <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-900/20" icon={<LogOut size={16} />} onClick={handleLogout}>
+                    Log Out
+                </Button>
+            </div>
+        </>
+      )}
+
+      {activeTab === 'billing' && isOwner && <BillingTab />}
+
+      {activeTab === 'security' && isOwner && <SecuritySettings />}
+
+      {activeTab === 'data' && <DataManagementTab />}
+
+      {activeTab === 'integrations' && <IntegrationsTab />}
+
+      {activeTab === 'ai' && <AgentSettings />}
+    </div>
+  );
+};

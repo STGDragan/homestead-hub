@@ -1,0 +1,7 @@
+{
+  "name": "Homestead Hub",
+  "description": "An offline-first, rustic productivity tool for homesteaders to manage land, animals, and tasks.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

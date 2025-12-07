@@ -1,0 +1,193 @@
+
+import { dbService } from './db';
+import { IntegrationConfig, IntegrationLog, SensorDevice, SensorReading } from '../types';
+
+export interface IntegrationAdapter {
+    id: string;
+    name: string;
+    type: string;
+    fetch: (config: IntegrationConfig) => Promise<{ success: boolean; data?: any; error?: string }>;
+    transform?: (data: any) => any;
+}
+
+// Mock Adapter for OpenWeather
+const WeatherAdapter: IntegrationAdapter = {
+    id: 'openweathermap',
+    name: 'OpenWeatherMap',
+    type: 'weather',
+    fetch: async (config) => {
+        // Simulate fetch
+        await new Promise(resolve => setTimeout(resolve, 800));
+        if (Math.random() > 0.9) return { success: false, error: 'API Rate Limit Exceeded' };
+        
+        return { 
+            success: true, 
+            data: { 
+                temp: 72 + Math.random() * 5, 
+                humidity: 40 + Math.random() * 10,
+                condition: 'cloudy'
+            } 
+        };
+    }
+};
+
+// Mock Adapter for IoT Hub
+const IoTAdapter: IntegrationAdapter = {
+    id: 'mqtt_gateway',
+    name: 'Generic MQTT Gateway',
+    type: 'sensor_hardware',
+    fetch: async (config) => {
+        await new Promise(resolve => setTimeout(resolve, 600));
+        // Simulate returning a list of devices and their current readings
+        return {
+            success: true,
+            data: [
+                { externalId: 'dev_001', type: 'temp', value: 68.5, unit: 'F', location: 'Greenhouse 1' },
+                { externalId: 'dev_002', type: 'moisture', value: 45, unit: '%', location: 'North Bed' }
+            ]
+        };
+    }
+};
+
+const ADAPTERS: Record<string, IntegrationAdapter> = {
+    'openweathermap': WeatherAdapter,
+    'mqtt_gateway': IoTAdapter
+};
+
+export const integrationService = {
+    
+    getAvailableAdapters() {
+        return Object.values(ADAPTERS);
+    },
+
+    async getAllConfigs(): Promise<IntegrationConfig[]> {
+        return await dbService.getAll<IntegrationConfig>('integrations');
+    },
+
+    async saveConfig(config: IntegrationConfig): Promise<void> {
+        await dbService.put('integrations', config);
+    },
+
+    async deleteConfig(id: string): Promise<void> {
+        await dbService.delete('integrations', id);
+    },
+
+    /**
+     * Trigger a sync for a specific integration.
+     */
+    async syncIntegration(configId: string): Promise<void> {
+        const config = await dbService.get<IntegrationConfig>('integrations', configId);
+        if (!config || config.status === 'inactive') return;
+
+        const adapter = ADAPTERS[config.provider];
+        if (!adapter) {
+            await this.log(configId, 'error', 'failure', `Adapter ${config.provider} not found`);
+            return;
+        }
+
+        // Log Start
+        await this.log(configId, 'sync', 'success', 'Starting sync...');
+
+        try {
+            const start = Date.now();
+            const result = await adapter.fetch(config);
+            const duration = Date.now() - start;
+
+            if (result.success) {
+                config.lastSyncAt = Date.now();
+                config.status = 'active'; // Reset error state if successful
+                config.errorCount = 0;
+                await dbService.put('integrations', config);
+                await this.log(configId, 'sync', 'success', `Synced successfully in ${duration}ms`, duration);
+
+                // Process Data based on Type
+                if (config.type === 'sensor_hardware') {
+                    await this.processSensorData(config.id, result.data);
+                } else if (config.type === 'weather') {
+                    // In a real app, store to weather cache. 
+                    // For now, we just log it as the "weatherService" mocks its own data anyway.
+                    console.log('Weather data fetched:', result.data);
+                }
+
+            } else {
+                config.status = 'error';
+                config.errorCount = (config.errorCount || 0) + 1;
+                config.lastErrorMessage = result.error;
+                await dbService.put('integrations', config);
+                await this.log(configId, 'sync', 'failure', result.error || 'Unknown error', duration);
+            }
+        } catch (e: any) {
+            config.status = 'error';
+            config.errorCount = (config.errorCount || 0) + 1;
+            config.lastErrorMessage = e.message;
+            await dbService.put('integrations', config);
+            await this.log(configId, 'error', 'failure', e.message);
+        }
+    },
+
+    async processSensorData(integrationId: string, payload: any[]) {
+        if (!Array.isArray(payload)) return;
+
+        for (const item of payload) {
+            // 1. Find or Create Device
+            const devices = await dbService.getAllByIndex<SensorDevice>('sensor_devices', 'integrationId', integrationId);
+            let device = devices.find(d => d.externalId === item.externalId);
+
+            if (!device) {
+                device = {
+                    id: crypto.randomUUID(),
+                    integrationId,
+                    externalId: item.externalId,
+                    name: item.location || `Device ${item.externalId}`,
+                    type: item.type,
+                    location: item.location,
+                    status: 'online',
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                    syncStatus: 'pending'
+                };
+                await dbService.put('sensor_devices', device);
+            }
+
+            // 2. Log Reading
+            const reading: SensorReading = {
+                id: crypto.randomUUID(),
+                sensorId: device.id,
+                timestamp: Date.now(),
+                value: item.value,
+                unit: item.unit,
+                type: item.type,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                syncStatus: 'pending'
+            };
+            await dbService.put('sensor_readings', reading);
+
+            // 3. Update Device Status
+            device.lastReading = item.value;
+            device.lastReadingAt = Date.now();
+            device.status = 'online';
+            await dbService.put('sensor_devices', device);
+        }
+    },
+
+    async getLogs(integrationId: string): Promise<IntegrationLog[]> {
+        const logs = await dbService.getAllByIndex<IntegrationLog>('integration_logs', 'integrationId', integrationId);
+        return logs.sort((a, b) => b.createdAt - a.createdAt);
+    },
+
+    async log(integrationId: string, action: IntegrationLog['action'], status: IntegrationLog['status'], details: string, durationMs?: number) {
+        const log: IntegrationLog = {
+            id: crypto.randomUUID(),
+            integrationId,
+            action,
+            status,
+            details,
+            durationMs,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            syncStatus: 'pending'
+        };
+        await dbService.put('integration_logs', log, 'sync'); // Don't sync logs to avoid loops/noise
+    }
+};
