@@ -6,7 +6,7 @@ import { NavItem, PlantTemplate, SpeciesType, Season, TaskCategory, DiagnosisRes
 // *** SECURITY CONFIG ***
 // Replace this with your actual email to gain Owner permissions.
 // In a production app, this would be an environment variable or backend logic.
-export const OWNER_EMAIL = "your-email@example.com"; 
+export const OWNER_EMAIL = "travisddr@gmail.com"; 
 
 // ... existing constants ...
 
