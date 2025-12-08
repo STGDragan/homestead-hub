@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Animal, SpeciesType, AnimalSex, HerdGroup, AnimalStatus, AnimalTemplate } from '../../types';
 import { Button } from '../ui/Button';
@@ -8,7 +7,7 @@ import { Select } from '../ui/Select';
 import { dbService } from '../../services/db';
 import { libraryService } from '../../services/libraryService';
 import { X, PawPrint, Upload, Image as ImageIcon, BookOpen } from 'lucide-react';
-import { ANIMAL_SPECIES } from '../../constants';
+import { ANIMAL_SPECIES, ANIMAL_BREEDS } from '../../constants';
 
 interface AnimalEditorModalProps {
   animal?: Animal | null;
@@ -65,13 +64,11 @@ export const AnimalEditorModal: React.FC<AnimalEditorModalProps> = ({ animal, on
   };
 
   const handleLibrarySelect = (breedName: string) => {
+      setBreed(breedName);
       const template = libraryAnimals.find(a => a.name === breedName);
       if (template) {
-          setBreed(template.name);
           if (template.imageUrl && !imagePreview) setImagePreview(template.imageUrl);
           if (template.description && !notes) setNotes(template.description);
-      } else {
-          setBreed(breedName);
       }
   };
 
@@ -147,18 +144,24 @@ export const AnimalEditorModal: React.FC<AnimalEditorModalProps> = ({ animal, on
                      Breed
                      <BookOpen size={12} className="text-earth-400"/>
                  </label>
-                 <select 
-                    className="w-full bg-white dark:bg-night-950 text-earth-900 dark:text-earth-100 border border-earth-300 dark:border-night-700 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-leaf-500 focus:border-leaf-500"
+                 
+                 <input
+                    list="breed-list"
+                    className="w-full bg-white dark:bg-night-950 text-earth-900 dark:text-earth-100 border border-earth-300 dark:border-night-700 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-leaf-500 focus:border-leaf-500 transition-colors"
                     value={breed}
                     onChange={e => handleLibrarySelect(e.target.value)}
-                 >
-                    <option value="">Select or Type...</option>
+                    placeholder="Type or select..."
+                 />
+                 <datalist id="breed-list">
+                    {/* First show any library items matching species */}
                     {libraryAnimals.map(a => (
-                        <option key={a.id} value={a.name}>{a.name}</option>
+                        <option key={a.id} value={a.name} />
                     ))}
-                    <option disabled>---</option>
-                    <option value="Unknown">Unknown / Mix</option>
-                 </select>
+                    {/* Then show the big constant list for the species */}
+                    {(ANIMAL_BREEDS[species] || []).map(b => (
+                        <option key={b} value={b} />
+                    ))}
+                 </datalist>
               </div>
 
               <Select

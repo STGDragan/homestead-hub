@@ -1,4 +1,6 @@
 
+
+
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { dbService } from '../../services/db';
@@ -145,14 +147,20 @@ export const GardenLayoutTool: React.FC = () => {
 
   const handlePlacePlant = (x: number, y: number, template: PlantTemplate) => {
      if (!bed) return;
-     // Simple duplicate prevention handled by grid logic visually, but good to check state
-     // Just add it, grid ensures we don't paint over same cell repeatedly in one drag if logic is right
+     
+     // Calculate smart planting date based on schedule
+     let plantDate = Date.now();
+     if (userProfile) {
+         const schedule = gardenAIService.getPlantingSchedule(template, userProfile.hardinessZone);
+         plantDate = schedule.startDate.getTime();
+     }
+
      const newPlant: Plant = {
         id: crypto.randomUUID(),
         bedId: bed.id,
         name: template.name,
         variety: template.defaultVariety,
-        plantedDate: Date.now(),
+        plantedDate: plantDate,
         daysToMaturity: template.daysToMaturity,
         status: 'seeded',
         quantity: 1, // Represents 1 square patch

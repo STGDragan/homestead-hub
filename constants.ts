@@ -341,15 +341,58 @@ export const ANIMAL_SPECIES: { id: SpeciesType, label: string }[] = [
 ];
 
 export const ANIMAL_BREEDS: Record<string, string[]> = {
-  chicken: ['Rhode Island Red', 'Ameraucana', 'Silkie', 'Leghorn', 'Orpington'],
-  duck: ['Pekin', 'Muscovy', 'Runner', 'Khaki Campbell'],
-  goat: ['Nubian', 'Nigerian Dwarf', 'Alpine', 'Boer'],
-  sheep: ['Dorper', 'Merino', 'Suffolk', 'Katahdin'],
-  cattle: ['Angus', 'Hereford', 'Jersey', 'Holstein', 'Highland'],
-  pig: ['Berkshire', 'Duroc', 'Yorkshire', 'KuneKune'],
-  rabbit: ['Rex', 'New Zealand', 'Holland Lop', 'Flemish Giant'],
-  bee: ['Italian', 'Carniolan', 'Russian', 'Buckfast'],
-  other: [],
+  chicken: [
+    'Ameraucana', 'Australorp', 'Barred Rock', 'Brahma', 'Buff Orpington', 'Cochin', 
+    'Cornish Cross', 'Delaware', 'Easter Egger', 'Favorelles', 'Jersey Giant', 
+    'Leghorn', 'Marans', 'New Hampshire Red', 'Olive Egger', 'Orpington', 
+    'Plymouth Rock', 'Polish', 'Rhode Island Red', 'Silkie', 'Sussex', 
+    'Wyandotte', 'Welsummer', 'Unknown / Mix'
+  ],
+  duck: [
+    'Ancona', 'Buff', 'Call', 'Cayuga', 'Indian Runner', 'Khaki Campbell', 
+    'Magpie', 'Mallard', 'Muscovy', 'Pekin', 'Rouen', 'Saxony', 
+    'Swedish Blue', 'Welsh Harlequin', 'Unknown / Mix'
+  ],
+  goat: [
+    'Alpine', 'Angora', 'Boer', 'Kiko', 'LaMancha', 'Myotonic (Fainting)', 
+    'Nigerian Dwarf', 'Nubian', 'Oberhasli', 'Pygmy', 'Saanen', 
+    'Sable', 'Spanish', 'Toggenburg', 'Unknown / Mix'
+  ],
+  sheep: [
+    'Babydoll Southdown', 'Border Leicester', 'Cheviot', 'Columbia', 'Corriedale', 
+    'Dorper', 'Dorset', 'Finnsheep', 'Hampshire', 'Icelandic', 
+    'Jacob', 'Katahdin', 'Lincoln', 'Merino', 'Navajo-Churro', 
+    'Polypay', 'Rambouillet', 'Romney', 'Shetland', 'Suffolk', 
+    'Tunis', 'Valais Blacknose', 'Unknown / Mix'
+  ],
+  cattle: [
+    'Angus', 'Ayrshire', 'Belted Galloway', 'Brahman', 'Brown Swiss', 
+    'Charolais', 'Dexter', 'Guernsey', 'Hereford', 'Highland', 
+    'Holstein', 'Jersey', 'Limousin', 'Longhorn', 'Miniature Zebu', 
+    'Red Poll', 'Shorthorn', 'Simmental', 'Wagyu', 'Unknown / Mix'
+  ],
+  pig: [
+    'American Guinea Hog', 'Berkshire', 'Chester White', 'Duroc', 'Hampshire', 
+    'Hereford', 'Idaho Pasture', 'KuneKune', 'Landrace', 'Large Black', 
+    'Mangalitsa', 'Meishan', 'Ossabaw Island', 'Poland China', 
+    'Potbelly', 'Red Wattle', 'Spotted', 'Tamworth', 'Yorkshire', 'Unknown / Mix'
+  ],
+  rabbit: [
+    'American Chinchilla', 'Angora', 'Californian', 'Checkered Giant', 
+    'Dutch', 'Flemish Giant', 'Florida White', 'Harlequin', 'Havana', 
+    'Himalayan', 'Holland Lop', 'Lionhead', 'Mini Lop', 'Mini Rex', 
+    'Netherland Dwarf', 'New Zealand', 'Palomino', 'Rex', 'Satin', 
+    'Silver Fox', 'Tan', 'Unknown / Mix'
+  ],
+  bee: [
+    'Buckfast', 'Carniolan', 'Caucasian', 'German (Black)', 'Italian', 
+    'Russian', 'Saskatraz', 'Africanized', 'Unknown / Wild'
+  ],
+  other: [
+    'Alpaca', 'Donkey', 'Emu', 'Goose', 'Guinea Fowl', 'Horse', 
+    'Llama', 'Mule', 'Ostrich', 'Peacock', 'Quail', 'Turkey', 
+    'Yak', 'Unknown'
+  ],
 };
 
 export const PLANT_LIBRARY = [

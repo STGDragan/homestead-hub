@@ -30,6 +30,7 @@ export const gardenAIService = {
     /**
      * Get estimated Last Frost Date for a given zone.
      * Uses simplified average dates for the Northern Hemisphere.
+     * Returns a Date object for the current calendar year.
      */
     getFrostDate(zone: string): Date {
         const year = new Date().getFullYear();
@@ -62,30 +63,48 @@ export const gardenAIService = {
     },
 
     /**
-     * Calculate planting window based on frost date and plant constraints
+     * Calculate planting window based on frost date and plant constraints.
+     * Automatically adjusts year if the window has passed.
      */
     getPlantingSchedule(plant: PlantTemplate, zone: string): { startDate: Date, method: string, advice: string } {
-        const frostDate = this.getFrostDate(zone);
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const frostDate = this.getFrostDate(zone); // Default to this year
         const offsetWeeks = plant.weeksRelativeToFrost || 0;
         
-        // Calculate start date
-        const startDate = new Date(frostDate);
+        // Calculate initial start date for THIS year
+        let startDate = new Date(frostDate);
         startDate.setDate(frostDate.getDate() + (offsetWeeks * 7));
 
         const method = plant.plantingMethod || 'direct';
-        let advice = '';
+        const effectiveMethod = method === 'both' ? 'transplant' : method;
 
-        const dateStr = startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        // Determine "Action Date" (earliest action required)
+        // If transplanting, action starts ~6 weeks before the outdoor start date
+        // If direct sowing, action is the start date itself
+        let actionDate = new Date(startDate);
+        if (effectiveMethod === 'transplant') {
+            actionDate.setDate(actionDate.getDate() - 42); // 6 weeks prior
+        }
+
+        // Logic: If the action date is in the past (with 30 day grace period), push to NEXT year
+        // Example: It's Dec 2024. Tomato action date was Mar 2024. We want Mar 2025.
+        // Grace period allows users to catch up if they are just a few weeks late.
+        if (actionDate.getTime() < (today.getTime() - (30 * 24 * 60 * 60 * 1000))) {
+            startDate.setFullYear(currentYear + 1);
+        }
+
+        let advice = '';
+        const dateStr = startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
         if (method === 'transplant') {
             if (offsetWeeks < 0) {
-                // E.g. Start indoors 4 weeks before frost - usually this logic implies outdoor planting date is the anchor
-                // But for simplicity in this helper, we return the anchor date
-                advice = `Transplant out around ${dateStr}. Start seeds 6-8 weeks prior.`;
+                advice = `Transplant out around ${dateStr}. Start seeds indoors 6-8 weeks prior.`;
             } else {
-                // E.g. Transplant out 2 weeks after frost
                 advice = `Transplant outside around ${dateStr} (after frost).`;
             }
+        } else if (method === 'both') {
+             advice = `Direct sow or transplant around ${dateStr}.`;
         } else {
             // Direct sow
             if (offsetWeeks < 0) {
@@ -107,19 +126,20 @@ export const gardenAIService = {
     },
 
     /**
-     * Generate a list of suggested tasks for a newly added plant
+     * Generate a list of suggested tasks for a newly added plant.
+     * Dates are automatically adjusted for the next viable season.
      */
     generateSuggestedTasks(plant: Plant, template: PlantTemplate, profile: UserProfile): Task[] {
         const tasks: Task[] = [];
+        
+        // This gets the correct year's schedule (current or next)
         const { startDate: anchorDate, method } = this.getPlantingSchedule(template, profile.hardinessZone);
+        
         const varietyStr = template.defaultVariety ? `(${template.defaultVariety})` : '';
-
-        // If 'both', treat as transplant for maximum task coverage, or could branch logic
         const effectiveMethod = method === 'both' ? 'transplant' : method;
 
         if (effectiveMethod === 'transplant') {
             // 1. Start Seeds (6 weeks before anchor date)
-            // We assume the anchorDate returned by getPlantingSchedule is the OUTDOOR date
             const seedDate = new Date(anchorDate);
             seedDate.setDate(seedDate.getDate() - 42); // -6 weeks
             
@@ -224,7 +244,7 @@ export const gardenAIService = {
     getRecommendations(profile: UserProfile, currentSeason: string = 'spring'): ScoredPlant[] {
         if (!profile) return [];
         
-        const zoneNum = parseInt(profile.hardinessZone.replace(/[^0-9]/g, '')) || 6; // Default to 6 if parse fails
+        const zoneNum = parseInt(profile.hardinessZone.replace(/[^0-9]/g, '')) || 6;
         
         return COMMON_PLANTS.map(plant => {
             let score = 0;
@@ -336,12 +356,15 @@ export const gardenAIService = {
                     const xPct = ((corner.c + 0.5) / totalCols) * 100;
                     const yPct = ((corner.r + 0.5) / totalRows) * 100;
                     
+                    // Determine smart schedule
+                    const schedule = this.getPlantingSchedule(plantType, profile.hardinessZone);
+                    
                     plants.push({
                         id: crypto.randomUUID(),
                         bedId: bed.id,
                         name: plantType.name,
                         variety: plantType.defaultVariety,
-                        plantedDate: Date.now(),
+                        plantedDate: schedule.startDate.getTime(),
                         daysToMaturity: plantType.daysToMaturity,
                         status: 'seeded',
                         quantity: 1,
@@ -397,12 +420,15 @@ export const gardenAIService = {
                 const xPct = ((col + 0.5) / totalCols) * 100;
                 const yPct = ((row + 0.5) / totalRows) * 100;
 
+                // Determine smart schedule
+                const schedule = this.getPlantingSchedule(plantType, profile.hardinessZone);
+
                 plants.push({
                     id: crypto.randomUUID(),
                     bedId: bed.id,
                     name: plantType.name,
                     variety: plantType.defaultVariety,
-                    plantedDate: Date.now(),
+                    plantedDate: schedule.startDate.getTime(),
                     daysToMaturity: plantType.daysToMaturity,
                     status: 'seeded',
                     quantity: 1, // Represents "1 square's worth"

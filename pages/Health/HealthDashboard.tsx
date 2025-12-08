@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { dbService } from '../../services/db';
 import { healthAIService } from '../../services/healthAI';
 import { HealthRecord, HealthSubjectType } from '../../types';
@@ -13,9 +14,17 @@ export const HealthDashboard: React.FC = () => {
   const [records, setRecords] = useState<HealthRecord[]>([]);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  const location = useLocation();
 
   useEffect(() => {
     loadRecords();
+    
+    if (location.state && (location.state as any).autoScan) {
+        setIsScannerOpen(true);
+        // Clean up state so it doesn't reopen on strict mode double-mount or refresh
+        window.history.replaceState({}, document.title);
+    }
     
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -25,7 +34,7 @@ export const HealthDashboard: React.FC = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [location]);
 
   const loadRecords = async () => {
     try {

@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { dbService } from '../../services/db';
@@ -15,7 +14,7 @@ import { ShoppingListModal } from '../../components/garden/ShoppingListModal';
 import { HarvestLogModal } from '../../components/journal/HarvestLogModal';
 import { TaskCreationModal } from '../../components/garden/TaskCreationModal';
 import { CustomPlantModal } from '../../components/garden/CustomPlantModal';
-import { ArrowLeft, Plus, Calendar, Droplets, Leaf, Clock, Camera, History, Star, Grid, Edit, ShoppingCart, ShoppingBasket, Trophy } from 'lucide-react';
+import { ArrowLeft, Plus, Calendar, Droplets, Leaf, Clock, Camera, History, Star, Grid, Edit, ShoppingCart, ShoppingBasket, Trophy, ListTodo } from 'lucide-react';
 import { COMMON_PLANTS } from '../../constants';
 
 type Tab = 'plants' | 'layout' | 'timeline' | 'photos' | 'logs' | 'harvest';
@@ -38,7 +37,9 @@ export const GardenBedDetail: React.FC = () => {
   const [showHarvestModal, setShowHarvestModal] = useState(false);
   const [showTaskPrompt, setShowTaskPrompt] = useState(false);
   const [showCustomPlantModal, setShowCustomPlantModal] = useState(false);
-  const [recentPlantForTasks, setRecentPlantForTasks] = useState<{ plant: Plant, template: PlantTemplate } | null>(null);
+  
+  // Tasks Logic
+  const [plantsForTaskGen, setPlantsForTaskGen] = useState<{ plant: Plant, template: PlantTemplate }[]>([]);
 
   const [plantTemplates, setPlantTemplates] = useState<ScoredPlant[]>([]);
   const [allTemplates, setAllTemplates] = useState<PlantTemplate[]>([]);
@@ -85,12 +86,19 @@ export const GardenBedDetail: React.FC = () => {
      const template = plantTemplates.find(p => p.id === templateId);
      if (!template || !bed) return;
 
+     // Smart Date Calculation
+     let plantDate = Date.now();
+     if (profile) {
+         const schedule = gardenAIService.getPlantingSchedule(template, profile.hardinessZone);
+         plantDate = schedule.startDate.getTime();
+     }
+
      const newPlant: Plant = {
         id: crypto.randomUUID(),
         bedId: bed.id,
         name: template.name,
         variety: template.defaultVariety,
-        plantedDate: Date.now(),
+        plantedDate: plantDate,
         daysToMaturity: template.daysToMaturity,
         status: 'seeded',
         quantity: 1,
@@ -105,8 +113,23 @@ export const GardenBedDetail: React.FC = () => {
      await addLog('note', `Planted ${template.name}`, newPlant.id);
      setIsAddingPlant(false);
 
-     setRecentPlantForTasks({ plant: newPlant, template });
+     setPlantsForTaskGen([{ plant: newPlant, template }]);
      setShowTaskPrompt(true);
+  };
+
+  const handleGenerateAllTasks = () => {
+      if (!profile) return;
+      const batch = plants.map(p => ({
+          plant: p,
+          template: allTemplates.find(t => t.name === p.name) || COMMON_PLANTS.find(t => t.name === p.name)!
+      })).filter(x => x.template);
+      
+      if (batch.length > 0) {
+          setPlantsForTaskGen(batch);
+          setShowTaskPrompt(true);
+      } else {
+          alert("No valid plants found to generate tasks for.");
+      }
   };
 
   const handleSaveTasks = async (tasks: Task[]) => {
@@ -114,7 +137,7 @@ export const GardenBedDetail: React.FC = () => {
           await dbService.put('tasks', t);
       }
       setShowTaskPrompt(false);
-      setRecentPlantForTasks(null);
+      setPlantsForTaskGen([]);
   };
 
   const removePlant = async (plantId: string) => {
@@ -248,7 +271,14 @@ export const GardenBedDetail: React.FC = () => {
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className="font-bold text-lg text-earth-800 dark:text-earth-100 hidden md:block">Current Crops</h2>
-                        <Button size="sm" onClick={() => setIsAddingPlant(!isAddingPlant)} icon={<Plus size={16} />} className="w-full md:w-auto">Add Plant</Button>
+                        <div className="flex gap-2 w-full md:w-auto">
+                            {plants.length > 0 && (
+                                <Button size="sm" variant="secondary" onClick={handleGenerateAllTasks} icon={<ListTodo size={16}/>}>
+                                    Generate Schedule
+                                </Button>
+                            )}
+                            <Button size="sm" onClick={() => setIsAddingPlant(!isAddingPlant)} icon={<Plus size={16} />}>Add Plant</Button>
+                        </div>
                     </div>
 
                     {isAddingPlant && (
@@ -300,6 +330,7 @@ export const GardenBedDetail: React.FC = () => {
                                 <div className="flex-1 min-w-0">
                                     <h3 className="font-bold text-earth-800 dark:text-earth-100 truncate">{plant.name}</h3>
                                     <p className="text-xs text-earth-500 dark:text-night-400 truncate">{plant.variety}</p>
+                                    <p className="text-[10px] text-earth-400 mt-0.5">Planted: {new Date(plant.plantedDate).toLocaleDateString()}</p>
                                 </div>
                                 <div className="text-right">
                                     <span className="inline-block px-2 py-1 bg-leaf-50 dark:bg-leaf-900/20 text-leaf-800 dark:text-leaf-400 text-xs font-bold rounded capitalize">
@@ -503,12 +534,12 @@ export const GardenBedDetail: React.FC = () => {
           />
       )}
 
-      {showTaskPrompt && recentPlantForTasks && profile && (
+      {showTaskPrompt && plantsForTaskGen.length > 0 && profile && (
           <TaskCreationModal 
-             plants={[recentPlantForTasks]}
+             plants={plantsForTaskGen}
              userProfile={profile}
              onConfirm={handleSaveTasks}
-             onCancel={() => { setShowTaskPrompt(false); setRecentPlantForTasks(null); }}
+             onCancel={() => { setShowTaskPrompt(false); setPlantsForTaskGen([]); }}
           />
       )}
     </div>

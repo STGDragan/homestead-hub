@@ -1,12 +1,17 @@
+
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Plus, CloudRain, Sun, Sprout, AlertCircle, Database, Smartphone, BookOpen } from 'lucide-react';
 import { dbService } from '../services/db';
-import { Task, UserProfile } from '../types';
+import { Task, UserProfile, HarvestLog } from '../types';
 import { AdPlacement } from '../components/monetization/AdPlacement';
 import { AgentDashboardWidget } from '../components/ai/AgentDashboardWidget';
+import { TaskEditorModal } from '../components/tasks/TaskEditorModal';
+import { HarvestLogModal } from '../components/journal/HarvestLogModal';
+import { gardenAIService } from '../services/gardenAI';
 
 const WeatherWidget = () => (
   <Card className="bg-gradient-to-br from-leaf-700 to-leaf-900 text-white border-none shadow-lg">
@@ -34,21 +39,23 @@ const WeatherWidget = () => (
   </Card>
 );
 
-const TaskList = () => {
+const TaskList: React.FC<{ refreshTrigger: number }> = ({ refreshTrigger }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
 
   useEffect(() => {
     const loadTasks = async () => {
       try {
          const allTasks = await dbService.getAll<Task>('tasks');
-         const pending = allTasks.filter(t => !t.completed).slice(0, 3);
-         setTasks(pending);
+         const pending = allTasks
+            .filter(t => !t.completed)
+            .sort((a, b) => (a.dueDate || 0) - (b.dueDate || 0)); // Sort by due date ASC to show soonest first
+         setTasks(pending.slice(0, 3));
       } catch (e) {
          console.error(e);
       }
     };
     loadTasks();
-  }, []);
+  }, [refreshTrigger]);
 
   if (tasks.length === 0) {
     return (
@@ -67,7 +74,10 @@ const TaskList = () => {
           </div>
           <div className="flex-1">
             <p className={`font-bold text-earth-800 dark:text-earth-100 ${task.completed ? 'line-through text-earth-400 dark:text-night-500' : ''}`}>{task.title}</p>
-            <p className="text-xs text-earth-500 dark:text-night-400 capitalize">{task.category}</p>
+            <div className="flex gap-2 text-xs text-earth-500 dark:text-night-400">
+               <span className="capitalize">{task.category}</span>
+               {task.dueDate && <span>• Due {new Date(task.dueDate).toLocaleDateString()}</span>}
+            </div>
           </div>
           {task.syncStatus === 'pending' && (
             <div className="w-2 h-2 rounded-full bg-clay-500" title="Sync Pending" />
@@ -80,7 +90,11 @@ const TaskList = () => {
 };
 
 export const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showHarvestModal, setShowHarvestModal] = useState(false);
+  const [taskRefreshKey, setTaskRefreshKey] = useState(0);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -89,6 +103,33 @@ export const Dashboard: React.FC = () => {
     };
     loadProfile();
   }, []);
+
+  const handleSaveTask = async (taskData: Partial<Task>) => {
+    const newTask: Task = {
+        id: crypto.randomUUID(),
+        title: taskData.title!,
+        description: taskData.description || '',
+        season: taskData.season || 'spring',
+        category: taskData.category || 'maintenance',
+        dueDate: taskData.dueDate || null,
+        completed: false,
+        priority: taskData.priority || 'medium',
+        isRecurring: taskData.isRecurring || false,
+        recurrencePattern: taskData.recurrencePattern || 'none',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        syncStatus: 'pending'
+    };
+    await dbService.put('tasks', newTask);
+    setShowTaskModal(false);
+    setTaskRefreshKey(prev => prev + 1); // Trigger list refresh
+  };
+
+  const handleSaveHarvest = async (log: HarvestLog) => {
+    await dbService.put('harvest_logs', log);
+    setShowHarvestModal(false);
+    // Could add toast here
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -115,25 +156,41 @@ export const Dashboard: React.FC = () => {
       </div>
       
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Button variant="secondary" className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500">
+        <Button 
+            onClick={() => setShowTaskModal(true)}
+            variant="secondary" 
+            className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500"
+        >
           <div className="bg-leaf-100 dark:bg-leaf-900/30 text-leaf-700 dark:text-leaf-400 p-2 rounded-full mb-2">
             <Plus size={24} />
           </div>
           <span className="text-sm">New Task</span>
         </Button>
-        <Button variant="secondary" className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500">
+        <Button 
+            onClick={() => setShowHarvestModal(true)}
+            variant="secondary" 
+            className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500"
+        >
           <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 p-2 rounded-full mb-2">
             <Sprout size={24} />
           </div>
           <span className="text-sm">Log Harvest</span>
         </Button>
-         <Button variant="secondary" className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500">
+         <Button 
+            onClick={() => navigate('/sync')}
+            variant="secondary" 
+            className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500"
+        >
           <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 p-2 rounded-full mb-2">
             <Database size={24} />
           </div>
           <span className="text-sm">Sync Status</span>
         </Button>
-        <Button variant="secondary" className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500">
+        <Button 
+            onClick={() => navigate('/health', { state: { autoScan: true } })}
+            variant="secondary" 
+            className="h-auto flex-col py-4 bg-white dark:bg-night-900 border border-earth-200 dark:border-night-800 shadow-sm hover:border-leaf-500 dark:hover:border-leaf-500 hover:ring-1 hover:ring-leaf-500"
+        >
           <div className="bg-stone-100 dark:bg-night-800 text-stone-700 dark:text-night-300 p-2 rounded-full mb-2">
             <Smartphone size={24} />
           </div>
@@ -152,7 +209,7 @@ export const Dashboard: React.FC = () => {
 
           <section>
             <h2 className="text-xl font-serif font-bold text-earth-900 dark:text-earth-100 mb-4">Priority Tasks</h2>
-            <TaskList />
+            <TaskList refreshTrigger={taskRefreshKey} />
           </section>
           
           <section>
@@ -207,6 +264,21 @@ export const Dashboard: React.FC = () => {
       <div className="mt-8">
          <AdPlacement placementId="footer_banner" />
       </div>
+
+      {showTaskModal && (
+          <TaskEditorModal 
+             initialSeason={gardenAIService.getSeasonFromDate(new Date())} 
+             onSave={handleSaveTask} 
+             onClose={() => setShowTaskModal(false)} 
+          />
+      )}
+
+      {showHarvestModal && (
+          <HarvestLogModal 
+             onSave={handleSaveHarvest} 
+             onClose={() => setShowHarvestModal(false)} 
+          />
+      )}
     </div>
   );
 };

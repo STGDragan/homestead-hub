@@ -1,13 +1,14 @@
 
-
 import React, { useEffect, useState } from 'react';
 import { dbService } from '../../services/db';
-import { HerdGroup, AnimalTypeEntry } from '../../types';
+import { beekeepingService } from '../../services/beekeepingService';
+import { HerdGroup, AnimalTypeEntry, Hive, HiveType, BeeBreed } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 import { HerdCard } from '../../components/livestock/HerdCard';
 import { Plus, X, PawPrint, ChevronRight, Baby, Heart, Hexagon } from 'lucide-react';
-import { ANIMAL_SPECIES } from '../../constants';
+import { ANIMAL_SPECIES, HIVE_TYPES, BEE_BREEDS } from '../../constants';
 import { useNavigate } from 'react-router-dom';
 import { ApiaryDashboard } from '../Beekeeping/ApiaryDashboard';
 
@@ -23,6 +24,11 @@ export const LivestockDashboard: React.FC = () => {
   // Form State
   const [newHerdName, setNewHerdName] = useState('');
   const [newHerdType, setNewHerdType] = useState(ANIMAL_SPECIES[0].id);
+  
+  // Hive Specific State
+  const [hiveType, setHiveType] = useState<HiveType>('langstroth');
+  const [queenBreed, setQueenBreed] = useState<BeeBreed>('italian');
+  const [installDate, setInstallDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     loadData();
@@ -37,18 +43,41 @@ export const LivestockDashboard: React.FC = () => {
 
   const handleCreateHerd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newHerd: HerdGroup = {
-      id: crypto.randomUUID(),
-      name: newHerdName,
-      speciesType: newHerdType as any,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      syncStatus: 'pending'
-    };
-    await dbService.put('herds', newHerd);
-    setHerds([...herds, newHerd]);
-    setShowAddModal(false);
-    setNewHerdName('');
+
+    if (newHerdType === 'bee') {
+        // Create specialized Hive entity instead of generic Herd
+        const newHive: Hive = {
+            id: crypto.randomUUID(),
+            name: newHerdName,
+            type: hiveType,
+            queenBreed: queenBreed,
+            installedDate: new Date(installDate).getTime(),
+            location: { x: 50, y: 50 }, // Default map location
+            status: 'active',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            syncStatus: 'pending'
+        };
+        await beekeepingService.addHive(newHive);
+        setShowAddModal(false);
+        setNewHerdName('');
+        // Switch tab so user sees the new hive
+        setActiveTab('apiary');
+    } else {
+        // Standard Livestock Herd
+        const newHerd: HerdGroup = {
+          id: crypto.randomUUID(),
+          name: newHerdName,
+          speciesType: newHerdType as any,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          syncStatus: 'pending'
+        };
+        await dbService.put('herds', newHerd);
+        setHerds([...herds, newHerd]);
+        setShowAddModal(false);
+        setNewHerdName('');
+    }
   };
 
   return (
@@ -170,19 +199,21 @@ export const LivestockDashboard: React.FC = () => {
           <ApiaryDashboard embedded />
       )}
 
-      {/* Add Herd Modal */}
+      {/* Add Herd/Hive Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/80 p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-earth-200 dark:border-stone-800">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-serif font-bold text-earth-900 dark:text-earth-100">New Herd Group</h2>
+                    <h2 className="text-xl font-serif font-bold text-earth-900 dark:text-earth-100">
+                        {newHerdType === 'bee' ? 'New Bee Colony' : 'New Herd Group'}
+                    </h2>
                     <button onClick={() => setShowAddModal(false)} className="text-earth-400 hover:text-earth-600 dark:hover:text-earth-200"><X size={24} /></button>
                 </div>
                 <form onSubmit={handleCreateHerd} className="space-y-4">
                     <Input 
-                        label="Group Name"
+                        label={newHerdType === 'bee' ? "Hive Name" : "Group Name"}
                         autoFocus
-                        placeholder="e.g. Main Chicken Coop"
+                        placeholder={newHerdType === 'bee' ? "e.g. Hive #1" : "e.g. Main Chicken Coop"}
                         value={newHerdName}
                         onChange={(e) => setNewHerdName(e.target.value)}
                         required
@@ -202,9 +233,27 @@ export const LivestockDashboard: React.FC = () => {
                             ))}
                         </div>
                     </div>
+
+                    {/* Hive Specific Options - Dynamic Render */}
+                    {newHerdType === 'bee' && (
+                        <div className="space-y-4 pt-2 border-t border-earth-100 dark:border-stone-800 animate-in fade-in slide-in-from-top-2">
+                            <div className="grid grid-cols-2 gap-4">
+                                <Select label="Hive Type" value={hiveType} onChange={e => setHiveType(e.target.value as any)}>
+                                    {HIVE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                </Select>
+                                <Select label="Queen Breed" value={queenBreed} onChange={e => setQueenBreed(e.target.value as any)}>
+                                    {BEE_BREEDS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+                                </Select>
+                            </div>
+                            <Input label="Install Date" type="date" value={installDate} onChange={e => setInstallDate(e.target.value)} required />
+                        </div>
+                    )}
+
                     <div className="pt-2 flex gap-3">
                         <Button type="button" variant="ghost" onClick={() => setShowAddModal(false)} className="flex-1">Cancel</Button>
-                        <Button type="submit" className="flex-1">Create Group</Button>
+                        <Button type="submit" className="flex-1">
+                            {newHerdType === 'bee' ? 'Create Hive' : 'Create Group'}
+                        </Button>
                     </div>
                 </form>
             </div>
