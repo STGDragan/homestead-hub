@@ -5,8 +5,9 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { dbService } from '../../services/db';
 import { locationService } from '../../services/location';
+import { authService } from '../../services/auth';
 import { EXPERIENCE_LEVELS, HOMESTEAD_GOALS } from '../../constants';
-import { Sprout, Check, MapPin, User, Star, Loader2, AlertCircle } from 'lucide-react';
+import { Sprout, Check, MapPin, User, Star, Loader2, AlertCircle, Mail, Lock } from 'lucide-react';
 
 interface OnboardingWizardProps {
   onComplete: () => void;
@@ -22,15 +23,17 @@ const STEPS = [
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loadingZone, setLoadingZone] = useState(false);
-  const [errors, setErrors] = useState<{name?: string; zip?: string}>({});
+  const [errors, setErrors] = useState<{name?: string; zip?: string; email?: string; password?: string}>({});
   
-  const [formData, setFormData] = useState<Partial<UserProfile>>({
+  const [formData, setFormData] = useState<Partial<UserProfile> & { email?: string; password?: string }>({
     name: '',
     zipCode: '',
     hardinessZone: '',
     experienceLevel: 'beginner',
     goals: [],
     interests: [],
+    email: '',
+    password: '',
     preferences: {
         organicOnly: false,
         useMetric: false,
@@ -39,7 +42,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
   });
 
   const validateStep = () => {
-      const newErrors: {name?: string; zip?: string} = {};
+      const newErrors: typeof errors = {};
       let isValid = true;
 
       if (currentStep === 1) {
@@ -49,6 +52,14 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
           }
           if (!formData.zipCode || !/^\d{5}$/.test(formData.zipCode)) {
               newErrors.zip = "Please enter a valid 5-digit Zip Code.";
+              isValid = false;
+          }
+          if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+              newErrors.email = "Valid email required.";
+              isValid = false;
+          }
+          if (!formData.password || formData.password.length < 6) {
+              newErrors.password = "Min 6 characters.";
               isValid = false;
           }
       }
@@ -93,24 +104,39 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
   };
 
   const handleFinish = async () => {
-     // Save Profile
-     const profile: UserProfile = {
-        id: 'main_user',
-        userId: 'main_user',
-        name: formData.name!,
-        zipCode: formData.zipCode!,
-        hardinessZone: formData.hardinessZone || 'Unknown',
-        experienceLevel: formData.experienceLevel as ExperienceLevel,
-        goals: formData.goals as HomesteadGoal[],
-        interests: formData.interests || [],
-        preferences: formData.preferences!,
-        role: 'admin', // DEMO HACK: Set first user as admin so they can see the console
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        syncStatus: 'pending'
-     };
-     await dbService.put('user_profile', profile);
-     onComplete();
+     // Create Auth User & Profile via authService
+     // We use a fixed ID 'main_user' for the single-user local demo consistency,
+     // but authService usually generates IDs. We updated authService.register to accept an ID.
+     
+     try {
+         await authService.register(formData.email!, formData.password!, 'main_user');
+         
+         // Update the created profile with the extra details collected here
+         const profile: UserProfile = {
+            id: 'main_user', // Key for profile store is 'main_user' in this demo architecture
+            userId: 'main_user',
+            name: formData.name!,
+            email: formData.email!,
+            zipCode: formData.zipCode!,
+            hardinessZone: formData.hardinessZone || 'Unknown',
+            experienceLevel: formData.experienceLevel as ExperienceLevel,
+            goals: formData.goals as HomesteadGoal[],
+            interests: formData.interests || [],
+            preferences: formData.preferences!,
+            role: 'admin', // DEMO HACK: Set first user as admin so they can see the console
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            syncStatus: 'pending'
+         };
+         
+         // Overwrite the basic profile created by register
+         await dbService.put('user_profile', profile);
+         
+         onComplete();
+     } catch (e) {
+         console.error("Onboarding error", e);
+         alert("Failed to create account. Email might be taken.");
+     }
   };
 
   const toggleGoal = (goal: HomesteadGoal) => {
@@ -148,36 +174,53 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
   );
 
   const renderBasics = () => (
-     <div className="space-y-6 max-w-md mx-auto">
-        <div className="text-center mb-6">
+     <div className="space-y-4 max-w-md mx-auto">
+        <div className="text-center mb-4">
            <h2 className="text-xl font-serif font-bold text-earth-900 dark:text-earth-100">About You</h2>
-           <p className="text-earth-500 dark:text-earth-400">We use this to estimate frost dates and planting schedules.</p>
+           <p className="text-earth-500 dark:text-earth-400">Let's set up your account and location.</p>
         </div>
 
-        <div>
-            <Input 
-                label="What should we call you?"
-                icon={<User size={18} />}
-                placeholder="First Name (min 4 chars)"
-                value={formData.name}
-                onChange={e => handleNameChange(e.target.value)}
-                error={errors.name}
-                autoFocus
-            />
+        <Input 
+            label="Your Name"
+            icon={<User size={18} />}
+            placeholder="What should we call you?"
+            value={formData.name}
+            onChange={e => handleNameChange(e.target.value)}
+            error={errors.name}
+            autoFocus
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+           <Input 
+              label="Email"
+              icon={<Mail size={18} />}
+              type="email"
+              placeholder="you@farm.com"
+              value={formData.email}
+              onChange={e => setFormData({...formData, email: e.target.value})}
+              error={errors.email}
+           />
+           <Input 
+              label="Password"
+              icon={<Lock size={18} />}
+              type="password"
+              placeholder="••••••"
+              value={formData.password}
+              onChange={e => setFormData({...formData, password: e.target.value})}
+              error={errors.password}
+           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-           <div>
-               <Input 
-                  label="Zip Code"
-                  icon={<MapPin size={18} />}
-                  placeholder="12345"
-                  value={formData.zipCode}
-                  onChange={e => handleZipChange(e.target.value)}
-                  maxLength={5}
-                  error={errors.zip}
-               />
-           </div>
+           <Input 
+              label="Zip Code"
+              icon={<MapPin size={18} />}
+              placeholder="12345"
+              value={formData.zipCode}
+              onChange={e => handleZipChange(e.target.value)}
+              maxLength={5}
+              error={errors.zip}
+           />
            
            <div className="relative">
                <Input 
@@ -185,7 +228,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
                   placeholder="e.g. 6b"
                   value={formData.hardinessZone}
                   onChange={e => setFormData({ ...formData, hardinessZone: e.target.value })}
-                  // Allow manual override, but show visual indicator it's calculated
                   className={loadingZone ? "opacity-50" : ""}
                />
                {loadingZone && (
@@ -208,13 +250,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
             </div>
         )}
 
-        <div className="pt-4">
-           <Button 
-             onClick={nextStep} 
-             className="w-full" 
-           >
-              Next Step
-           </Button>
+        <div className="pt-2">
+           <Button onClick={nextStep} className="w-full">Next Step</Button>
         </div>
      </div>
   );

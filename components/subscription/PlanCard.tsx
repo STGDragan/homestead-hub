@@ -37,13 +37,13 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect, o
             </div>
             <p className="text-xs text-earth-500 mb-2">{plan.description}</p>
             <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-3xl font-bold text-earth-800 dark:text-white">${plan.priceCents / 100}</span>
+                <span className="text-3xl font-bold text-earth-800 dark:text-white">${(plan.priceCents || 0) / 100}</span>
                 <span className="text-earth-500 text-sm">/{plan.billingInterval}</span>
             </div>
         </div>
 
         <ul className="space-y-3 mb-8 flex-1">
-            {plan.features.map((feat, i) => (
+            {(plan.features || []).map((feat, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-earth-600 dark:text-stone-300">
                     <Check size={16} className="text-leaf-600 mt-0.5 shrink-0" />
                     <span className="capitalize">{feat.replace(/_/g, ' ')}</span>

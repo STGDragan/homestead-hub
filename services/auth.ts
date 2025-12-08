@@ -1,5 +1,3 @@
-
-
 import { dbService } from './db';
 import { AuthUser, AuthSession, AuthDevice, MfaDevice, UserProfile, UserRole, SecurityAuditLog } from '../types';
 import { OWNER_EMAIL } from '../constants';
@@ -22,6 +20,11 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
 
 // Basic hash simulation (In real app, use bcrypt/argon2 on server)
 const hashPassword = async (password: string, salt: string): Promise<string> => {
+    // Basic fallback for non-secure contexts (e.g. HTTP IP address access)
+    if (!crypto.subtle) {
+        console.warn("Secure context not detected. Using unsafe hash fallback.");
+        return btoa(password + salt); // INSECURE: Demo fallback only
+    }
     const msgBuffer = new TextEncoder().encode(password + salt);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -33,6 +36,11 @@ const generateToken = () => 'jwt_' + Math.random().toString(36).substr(2) + Date
 
 export const authService = {
 
+  // --- Event Emitter for UI Updates ---
+  notifyAuthChange() {
+      window.dispatchEvent(new Event('auth-change'));
+  },
+
   // --- Role Logic ---
 
   getRolePriority(role: UserRole): number {
@@ -41,8 +49,11 @@ export const authService = {
 
   hasRole(user: AuthUser | null, requiredRole: UserRole): boolean {
       if (!user) return false;
-      const userHighestRole = user.roles.reduce((highest, current) => {
-          const currentPri = this.getRolePriority(current);
+      // Defensive check: Ensure roles is an array
+      const roles = Array.isArray(user.roles) ? user.roles : ['user'];
+      
+      const userHighestRole = roles.reduce((highest, current) => {
+          const currentPri = this.getRolePriority(current as UserRole);
           return currentPri > highest ? currentPri : highest;
       }, 0);
       return userHighestRole >= this.getRolePriority(requiredRole);
@@ -50,13 +61,13 @@ export const authService = {
 
   // --- Core Auth Flows ---
 
-  async register(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+  async register(email: string, password: string, customId?: string): Promise<{ success: boolean; error?: string }> {
     // 1. Check existing
     const existing = await dbService.getByIndex<AuthUser>('auth_users', 'email', email);
     if (existing) return { success: false, error: 'Email already registered.' };
 
     // 2. Create Auth User
-    const userId = crypto.randomUUID();
+    const userId = customId || crypto.randomUUID();
     const salt = generateSalt();
     const hash = await hashPassword(password, salt);
 
@@ -97,7 +108,12 @@ export const authService = {
     };
 
     await dbService.put('auth_users', newUser);
-    await dbService.put('user_profile', newProfile);
+    // Only create profile if it doesn't exist (Onboarding might have created it)
+    const existingProfile = await dbService.get('user_profile', userId);
+    if (!existingProfile) {
+        await dbService.put('user_profile', newProfile);
+    }
+    
     await this.logAudit(userId, 'register', 'success');
 
     // 4. Auto-Login
@@ -150,6 +166,78 @@ export const authService = {
     return { success: false }; // Don't reveal user existence in real app
   },
 
+  /**
+   * Updates the current user's email and re-evaluates their role based on the OWNER_EMAIL constant.
+   * This is primarily for the Settings page to allow "claiming" the owner account.
+   */
+  async updateEmailAndRoles(newEmail: string): Promise<void> {
+      const session = this.getSession();
+      let userId = session?.userId;
+
+      // If no session (e.g. fresh onboarding), try to find the 'main_user' profile's auth user
+      if (!userId) {
+          userId = 'main_user';
+      }
+
+      let authUser = await dbService.get<AuthUser>('auth_users', userId);
+      
+      // If auth user doesn't exist (common in this demo flow), create one
+      if (!authUser) {
+          authUser = {
+              id: userId,
+              email: newEmail,
+              passwordHash: 'placeholder',
+              salt: 'placeholder',
+              emailVerified: false,
+              mfaEnabled: false,
+              status: 'active',
+              lastLogin: Date.now(),
+              roles: ['user'],
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              syncStatus: 'pending'
+          };
+      }
+
+      // Update Email
+      authUser.email = newEmail;
+
+      // Ensure roles array exists
+      if (!Array.isArray(authUser.roles)) {
+          authUser.roles = ['user'];
+      }
+
+      let rolesChanged = false;
+
+      // Check Owner Promotion
+      if (newEmail.toLowerCase() === OWNER_EMAIL.toLowerCase()) {
+          if (!authUser.roles.includes('owner')) {
+              // Promote to Owner
+              authUser.roles = ['owner', ...authUser.roles.filter(r => r !== 'owner')];
+              rolesChanged = true;
+              console.log("User promoted to Owner via email match.");
+          }
+      } else {
+          // Demote if they changed away from owner email
+          if (authUser.roles.includes('owner')) {
+              authUser.roles = authUser.roles.filter(r => r !== 'owner');
+              if (authUser.roles.length === 0) authUser.roles = ['user'];
+              rolesChanged = true;
+          }
+      }
+
+      await dbService.put('auth_users', authUser);
+      
+      // Ensure session exists
+      if (!session) {
+          await this.createSession(authUser);
+      }
+
+      if (rolesChanged) {
+          this.notifyAuthChange();
+      }
+  },
+
   // --- Session Management ---
 
   async createSession(user: AuthUser) {
@@ -194,6 +282,8 @@ export const authService = {
     };
     localStorage.setItem('auth_session', JSON.stringify(session));
     await this.logAudit(user.id, 'login', 'success', `Device: ${device.name}`);
+    
+    this.notifyAuthChange();
   },
 
   async logout() {
@@ -202,24 +292,38 @@ export const authService = {
         await this.logAudit(session.userId, 'logout', 'success');
     }
     localStorage.removeItem('auth_session');
-    window.location.reload();
+    // Ensure cleanup of any stale state
+    this.notifyAuthChange();
   },
 
   getSession(): AuthSession | null {
-    const json = localStorage.getItem('auth_session');
-    if (!json) return null;
-    const session = JSON.parse(json) as AuthSession;
-    if (session.expiresAt < Date.now()) {
-        this.logout(); // Expired
+    try {
+        const json = localStorage.getItem('auth_session');
+        if (!json) return null;
+        const session = JSON.parse(json) as AuthSession;
+        if (session.expiresAt < Date.now()) {
+            localStorage.removeItem('auth_session'); 
+            return null;
+        }
+        return session;
+    } catch (e) {
+        console.error("Session parse error", e);
+        localStorage.removeItem('auth_session');
         return null;
     }
-    return session;
   },
 
   async getCurrentUser(): Promise<AuthUser | null> {
-    const session = this.getSession();
-    if (!session) return null;
-    return await dbService.get<AuthUser>('auth_users', session.userId) || null;
+    try {
+        const session = this.getSession();
+        if (!session) {
+            return null;
+        }
+        return await dbService.get<AuthUser>('auth_users', session.userId) || null;
+    } catch (e) {
+        console.error("Error getting current user:", e);
+        return null;
+    }
   },
 
   // --- Device Management ---
@@ -299,7 +403,7 @@ export const authService = {
       if (target) {
           await this.createSession(target);
           await this.logAudit(adminId, 'impersonate', 'success', `Impersonated ${target.email}`);
-          window.location.reload();
+          this.notifyAuthChange();
       }
   },
 

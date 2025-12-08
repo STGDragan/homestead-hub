@@ -3,7 +3,7 @@
 import { BaseEntity, SyncQueueItem } from '../types';
 
 const DB_NAME = "homestead_db";
-const DB_VERSION = 28; // Bumped for Library & Help
+const DB_VERSION = 31; // Bumped for System Animal Library
 
 class DBService {
   private dbPromise: Promise<IDBDatabase>;
@@ -50,8 +50,9 @@ class DBService {
             'integrations', 'integration_logs', 'sensor_devices', 'sensor_readings',
             'orchard_trees', 'tree_logs', 'tree_yields',
             'hives', 'hive_inspections', 'hive_production',
-            // NEW STORES
-            'help_articles', 'plant_discussions'
+            'help_articles', 'plant_discussions',
+            // Admin Managed Libraries
+            'system_plants', 'system_animals'
         ];
 
         stores.forEach(name => {
@@ -128,7 +129,6 @@ class DBService {
                 if (name === 'hive_inspections' || name === 'hive_production') {
                     store.createIndex('hiveId', 'hiveId', { unique: false });
                 }
-                // New Indices
                 if (name === 'help_articles') {
                     store.createIndex('categoryId', 'categoryId', { unique: false });
                 }

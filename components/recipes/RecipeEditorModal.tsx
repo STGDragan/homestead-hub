@@ -30,7 +30,8 @@ export const RecipeEditorModal: React.FC<RecipeEditorModalProps> = ({ recipe, on
     setIngredients([...ingredients, { 
       name: newIngName, 
       quantity: parseFloat(newIngQty), 
-      unit: newIngUnit 
+      unit: newIngUnit,
+      category: 'other'
     }]);
     setNewIngName('');
     setNewIngQty('');
@@ -42,9 +43,9 @@ export const RecipeEditorModal: React.FC<RecipeEditorModalProps> = ({ recipe, on
   
   const simulateAIParse = () => {
      setIngredients([
-        { name: 'Tomato', quantity: 4, unit: 'count' },
-        { name: 'Basil', quantity: 1, unit: 'bunch' },
-        { name: 'Garlic', quantity: 2, unit: 'count' }
+        { name: 'Tomato', quantity: 4, unit: 'count', category: 'produce' },
+        { name: 'Basil', quantity: 1, unit: 'bunch', category: 'produce' },
+        { name: 'Garlic', quantity: 2, unit: 'count', category: 'produce' }
      ]);
   };
 

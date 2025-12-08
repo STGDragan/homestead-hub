@@ -1,13 +1,14 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { Animal, SpeciesType, AnimalSex, HerdGroup, AnimalStatus } from '../../types';
+import { Animal, SpeciesType, AnimalSex, HerdGroup, AnimalStatus, AnimalTemplate } from '../../types';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { dbService } from '../../services/db';
-import { X, PawPrint, Upload, Image as ImageIcon } from 'lucide-react';
-import { ANIMAL_SPECIES, ANIMAL_BREEDS } from '../../constants';
+import { libraryService } from '../../services/libraryService';
+import { X, PawPrint, Upload, Image as ImageIcon, BookOpen } from 'lucide-react';
+import { ANIMAL_SPECIES } from '../../constants';
 
 interface AnimalEditorModalProps {
   animal?: Animal | null;
@@ -33,6 +34,7 @@ export const AnimalEditorModal: React.FC<AnimalEditorModalProps> = ({ animal, on
   const [herds, setHerds] = useState<HerdGroup[]>([]);
   const [potentialSires, setPotentialSires] = useState<Animal[]>([]);
   const [potentialDams, setPotentialDams] = useState<Animal[]>([]);
+  const [libraryAnimals, setLibraryAnimals] = useState<AnimalTemplate[]>([]);
 
   useEffect(() => {
     const loadOptions = async () => {
@@ -43,6 +45,10 @@ export const AnimalEditorModal: React.FC<AnimalEditorModalProps> = ({ animal, on
        const allAnimals = await dbService.getAll<Animal>('animals');
        setPotentialSires(allAnimals.filter(a => a.sex === 'male' && a.id !== animal?.id && a.species === species));
        setPotentialDams(allAnimals.filter(a => a.sex === 'female' && a.id !== animal?.id && a.species === species));
+
+       // Load Library for Auto-Complete
+       const lib = await libraryService.getSystemAnimals();
+       setLibraryAnimals(lib.filter(a => a.species === species));
     };
     loadOptions();
   }, [species]);
@@ -56,6 +62,17 @@ export const AnimalEditorModal: React.FC<AnimalEditorModalProps> = ({ animal, on
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleLibrarySelect = (breedName: string) => {
+      const template = libraryAnimals.find(a => a.name === breedName);
+      if (template) {
+          setBreed(template.name);
+          if (template.imageUrl && !imagePreview) setImagePreview(template.imageUrl);
+          if (template.description && !notes) setNotes(template.description);
+      } else {
+          setBreed(breedName);
+      }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -76,9 +93,6 @@ export const AnimalEditorModal: React.FC<AnimalEditorModalProps> = ({ animal, on
       createdAt: animal?.createdAt
     });
   };
-
-  // Get breeds for current species
-  const breedSuggestions = ANIMAL_BREEDS[species] || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/80 p-4 backdrop-blur-sm">
@@ -111,13 +125,6 @@ export const AnimalEditorModal: React.FC<AnimalEditorModalProps> = ({ animal, on
            </div>
 
            <div className="grid grid-cols-2 gap-4">
-              <Input 
-                 label="Name / Tag"
-                 autoFocus
-                 value={name}
-                 onChange={e => setName(e.target.value)}
-                 required
-              />
               <Select
                  label="Species"
                  value={species}
@@ -125,21 +132,33 @@ export const AnimalEditorModal: React.FC<AnimalEditorModalProps> = ({ animal, on
               >
                  {ANIMAL_SPECIES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </Select>
+              <Input 
+                 label="Name / Tag"
+                 autoFocus
+                 value={name}
+                 onChange={e => setName(e.target.value)}
+                 required
+              />
            </div>
 
            <div className="grid grid-cols-2 gap-4">
-              <div className="w-full">
-                 <label className="block text-sm font-bold text-earth-700 dark:text-earth-300 mb-1">Breed</label>
-                 <input 
-                    list="breed-suggestions"
+              <div className="w-full relative">
+                 <label className="block text-sm font-bold text-earth-700 dark:text-earth-300 mb-1 flex items-center justify-between">
+                     Breed
+                     <BookOpen size={12} className="text-earth-400"/>
+                 </label>
+                 <select 
                     className="w-full bg-white dark:bg-night-950 text-earth-900 dark:text-earth-100 border border-earth-300 dark:border-night-700 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-leaf-500 focus:border-leaf-500"
                     value={breed}
-                    onChange={e => setBreed(e.target.value)}
-                    placeholder="Select or Type..."
-                 />
-                 <datalist id="breed-suggestions">
-                    {breedSuggestions.map(b => <option key={b} value={b} />)}
-                 </datalist>
+                    onChange={e => handleLibrarySelect(e.target.value)}
+                 >
+                    <option value="">Select or Type...</option>
+                    {libraryAnimals.map(a => (
+                        <option key={a.id} value={a.name}>{a.name}</option>
+                    ))}
+                    <option disabled>---</option>
+                    <option value="Unknown">Unknown / Mix</option>
+                 </select>
               </div>
 
               <Select

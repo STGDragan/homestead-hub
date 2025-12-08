@@ -1,54 +1,126 @@
 
-
-
 import React, { useEffect, useState } from 'react';
 import { dbService } from '../../services/db';
-import { UserProfile, AuthUser } from '../../types';
+import { UserProfile, AuthUser, NotificationPreference } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
 import { BillingTab } from './BillingTab'; 
 import { SecuritySettings } from './SecuritySettings';
 import { DataManagementTab } from './DataManagementTab'; 
-import { IntegrationsTab } from './IntegrationsTab';
+import { AdvertisingTab } from './AdvertisingTab';
 import { AgentSettings } from '../../components/ai/AgentSettings';
-import { User, MapPin, Award, Target, Save, LogOut, CreditCard, Lock, Brain, Database, Link as LinkIcon } from 'lucide-react';
-import { EXPERIENCE_LEVELS, HOMESTEAD_GOALS } from '../../constants';
+import { User, MapPin, Award, Target, Save, LogOut, CreditCard, Lock, Brain, Database, Mail, Loader2, Megaphone, Bell } from 'lucide-react';
+import { EXPERIENCE_LEVELS, HOMESTEAD_GOALS, OWNER_EMAIL } from '../../constants';
 import { authService } from '../../services/auth';
+import { notificationService } from '../../services/notificationService';
+import { useLocation } from 'react-router-dom';
 
 export const SettingsDashboard: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'security' | 'ai' | 'data' | 'integrations'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'security' | 'ai' | 'data' | 'advertising' | 'notifications'>('profile');
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPreference | null>(null);
   
   const [formData, setFormData] = useState<Partial<UserProfile>>({});
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const location = useLocation();
 
   useEffect(() => {
     loadData();
-  }, []);
+    // Handle deep linking to tabs from Admin Dashboard
+    if (location.state && (location.state as any).initialTab) {
+        setActiveTab((location.state as any).initialTab);
+    }
+  }, [location]);
 
   const loadData = async () => {
-    const user = await dbService.get<UserProfile>('user_profile', 'main_user');
-    const auth = await authService.getCurrentUser();
-    if (user) {
-       setProfile(user);
-       setFormData(user);
+    try {
+        const user = await dbService.get<UserProfile>('user_profile', 'main_user');
+        const auth = await authService.getCurrentUser();
+        const np = await notificationService.getPreferences('main_user');
+        
+        if (user) {
+           setProfile(user);
+           setFormData(user);
+        }
+        setAuthUser(auth);
+        
+        if (np) {
+            setNotifPrefs(np);
+        } else {
+            // Create default prefs if missing
+            const defaults: NotificationPreference = {
+                id: 'pref_main_user',
+                userId: 'main_user',
+                emailEnabled: true,
+                pushEnabled: true,
+                categories: { task: true, breeding: true, system: true, marketing: false },
+                createdAt: Date.now(), updatedAt: Date.now(), syncStatus: 'pending'
+            };
+            await notificationService.savePreferences(defaults);
+            setNotifPrefs(defaults);
+        }
+
+    } catch(e) {
+        console.error("Failed to load settings data", e);
     }
-    setAuthUser(auth);
   };
 
   const handleSave = async () => {
     if (!profile) return;
-    const updated: UserProfile = {
-       ...profile,
-       ...formData,
-       updatedAt: Date.now(),
-       syncStatus: 'pending' as const
-    };
-    await dbService.put('user_profile', updated);
-    setProfile(updated);
-    setIsEditing(false);
+    setIsSaving(true);
+    
+    try {
+        // Update Auth Email & Roles First
+        if (formData.email && formData.email !== profile.email) {
+            await authService.updateEmailAndRoles(formData.email);
+        }
+
+        const updated: UserProfile = {
+           ...profile,
+           ...formData,
+           updatedAt: Date.now(),
+           syncStatus: 'pending' as const
+        };
+        await dbService.put('user_profile', updated);
+        
+        setProfile(updated);
+        setIsEditing(false);
+        await loadData(); // Reload auth user state to reflect any role changes
+    } catch (e) {
+        console.error("Save failed", e);
+        alert("Failed to save settings.");
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
+  const handleNotifPrefChange = async (key: string, val: any) => {
+      if (!notifPrefs) return;
+      
+      let updated: NotificationPreference;
+      
+      if (['task', 'breeding', 'system', 'marketing'].includes(key)) {
+          updated = { 
+              ...notifPrefs, 
+              categories: { ...notifPrefs.categories, [key]: val },
+              updatedAt: Date.now(),
+              syncStatus: 'pending' as const
+          };
+      } else {
+          updated = { 
+              ...notifPrefs, 
+              [key]: val, 
+              updatedAt: Date.now(),
+              syncStatus: 'pending' as const
+          };
+      }
+      
+      await notificationService.savePreferences(updated);
+      setNotifPrefs(updated);
   };
 
   const handleLogout = () => {
@@ -70,8 +142,10 @@ export const SettingsDashboard: React.FC = () => {
         {activeTab === 'profile' && (
             isEditing ? (
             <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => { setIsEditing(false); setFormData(profile); }}>Cancel</Button>
-                <Button onClick={handleSave} icon={<Save size={18} />}>Save Changes</Button>
+                <Button variant="ghost" onClick={() => { setIsEditing(false); setFormData(profile); }} disabled={isSaving}>Cancel</Button>
+                <Button onClick={handleSave} icon={isSaving ? <Loader2 size={18} className="animate-spin"/> : <Save size={18} />} disabled={isSaving}>
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                </Button>
             </div>
             ) : (
             <Button variant="outline" onClick={() => setIsEditing(true)}>Edit Profile</Button>
@@ -87,14 +161,19 @@ export const SettingsDashboard: React.FC = () => {
             Profile & Prefs
          </button>
          
-         {isOwner && (
-             <button 
-                onClick={() => setActiveTab('billing')}
-                className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'billing' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
-             >
-                Subscription
-             </button>
-         )}
+         <button 
+            onClick={() => setActiveTab('notifications')}
+            className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'notifications' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
+         >
+            <Bell size={14} /> Notifications
+         </button>
+
+         <button 
+            onClick={() => setActiveTab('billing')}
+            className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'billing' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
+         >
+            My Plan
+         </button>
 
          {isOwner && (
              <button 
@@ -105,12 +184,6 @@ export const SettingsDashboard: React.FC = () => {
              </button>
          )}
 
-         <button 
-            onClick={() => setActiveTab('integrations')}
-            className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'integrations' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
-         >
-            <LinkIcon size={14} /> Integrations
-         </button>
          <button 
             onClick={() => setActiveTab('data')}
             className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'data' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
@@ -123,6 +196,12 @@ export const SettingsDashboard: React.FC = () => {
          >
             <Brain size={14} /> AI Agents
          </button>
+         <button 
+            onClick={() => setActiveTab('advertising')}
+            className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'advertising' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
+         >
+            <Megaphone size={14} /> Partner Program
+         </button>
       </div>
 
       {activeTab === 'profile' && (
@@ -134,42 +213,65 @@ export const SettingsDashboard: React.FC = () => {
                     </h2>
                     
                     <div className="space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Display Name</label>
-                        {isEditing ? (
-                            <Input 
-                                value={formData.name || ''}
-                                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                            />
-                        ) : (
-                            <p className="text-lg font-bold text-earth-900 dark:text-earth-100">{profile.name}</p>
-                        )}
-                    </div>
+                        <div>
+                            <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Display Name</label>
+                            {isEditing ? (
+                                <Input 
+                                    value={formData.name || ''}
+                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                />
+                            ) : (
+                                <p className="text-lg font-bold text-earth-900 dark:text-earth-100">{profile.name}</p>
+                            )}
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Zip Code</label>
+                            <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Email Address</label>
                             {isEditing ? (
-                                <Input 
-                                value={formData.zipCode || ''}
-                                onChange={e => setFormData({ ...formData, zipCode: e.target.value })}
-                                />
+                                <div className="space-y-1">
+                                    <Input 
+                                        type="email"
+                                        icon={<Mail size={16} />}
+                                        value={formData.email || ''}
+                                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                        placeholder="Enter email to sync perms"
+                                    />
+                                    <p className="text-[10px] text-earth-500">
+                                        Enter <strong>{OWNER_EMAIL}</strong> to enable Admin/Owner features.
+                                    </p>
+                                </div>
                             ) : (
-                                <p className="text-earth-800 dark:text-earth-200 font-medium flex items-center gap-1"><MapPin size={14}/> {profile.zipCode}</p>
+                                <p className="text-earth-800 dark:text-earth-200 font-medium flex items-center gap-2">
+                                    <Mail size={14}/> {profile.email || 'Not set'}
+                                    {isOwner && <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-bold uppercase">Owner</span>}
+                                </p>
                             )}
                         </div>
-                        <div>
-                            <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Hardiness Zone</label>
-                            {isEditing ? (
-                                <Input 
-                                value={formData.hardinessZone || ''}
-                                onChange={e => setFormData({ ...formData, hardinessZone: e.target.value })}
-                                />
-                            ) : (
-                                <p className="text-earth-800 dark:text-earth-200 font-medium">{profile.hardinessZone || 'Unknown'}</p>
-                            )}
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Zip Code</label>
+                                {isEditing ? (
+                                    <Input 
+                                    value={formData.zipCode || ''}
+                                    onChange={e => setFormData({ ...formData, zipCode: e.target.value })}
+                                    />
+                                ) : (
+                                    <p className="text-earth-800 dark:text-earth-200 font-medium flex items-center gap-1"><MapPin size={14}/> {profile.zipCode}</p>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Hardiness Zone</label>
+                                {isEditing ? (
+                                    <Input 
+                                    value={formData.hardinessZone || ''}
+                                    onChange={e => setFormData({ ...formData, hardinessZone: e.target.value })}
+                                    />
+                                ) : (
+                                    <p className="text-earth-800 dark:text-earth-200 font-medium">{profile.hardinessZone || 'Unknown'}</p>
+                                )}
+                            </div>
                         </div>
-                    </div>
                     </div>
                 </Card>
 
@@ -265,19 +367,6 @@ export const SettingsDashboard: React.FC = () => {
                             <span className={profile.preferences.useMetric ? "text-leaf-600 font-bold" : "text-earth-400"}>{profile.preferences.useMetric ? "Yes" : "No"}</span>
                             )}
                         </div>
-                        <div className="flex items-center justify-between p-3 bg-earth-50 dark:bg-night-800 rounded-xl border border-transparent dark:border-night-700">
-                            <span className="text-sm font-bold text-earth-700 dark:text-earth-300">Push Notifications</span>
-                            {isEditing ? (
-                            <input 
-                                type="checkbox" 
-                                className="w-5 h-5 rounded text-leaf-600 focus:ring-leaf-500 bg-white dark:bg-night-700 border-earth-300 dark:border-night-500"
-                                checked={formData.preferences?.enableNotifications}
-                                onChange={e => setFormData({ ...formData, preferences: { ...formData.preferences!, enableNotifications: e.target.checked }})}
-                            />
-                            ) : (
-                            <span className={profile.preferences.enableNotifications ? "text-leaf-600 font-bold" : "text-earth-400"}>{profile.preferences.enableNotifications ? "On" : "Off"}</span>
-                            )}
-                        </div>
                     </div>
                 </Card>
             </div>
@@ -290,15 +379,68 @@ export const SettingsDashboard: React.FC = () => {
         </>
       )}
 
-      {activeTab === 'billing' && isOwner && <BillingTab />}
+      {activeTab === 'notifications' && notifPrefs && (
+          <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                  <h2 className="font-bold text-lg text-earth-900 dark:text-earth-100 mb-4 flex items-center gap-2">
+                      <Bell size={20} className="text-leaf-600"/> Delivery Channels
+                  </h2>
+                  <div className="space-y-4">
+                      <div className="flex justify-between items-center p-3 bg-earth-50 dark:bg-stone-800 rounded-xl border border-earth-100 dark:border-stone-700">
+                          <div>
+                              <p className="font-bold text-earth-800 dark:text-earth-200 text-sm">Push Notifications</p>
+                              <p className="text-xs text-earth-500">Receive alerts on this device</p>
+                          </div>
+                          <input 
+                              type="checkbox" 
+                              checked={notifPrefs.pushEnabled} 
+                              onChange={(e) => handleNotifPrefChange('pushEnabled', e.target.checked)}
+                              className="w-5 h-5 text-leaf-600 rounded focus:ring-leaf-500"
+                          />
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-earth-50 dark:bg-stone-800 rounded-xl border border-earth-100 dark:border-stone-700">
+                          <div>
+                              <p className="font-bold text-earth-800 dark:text-earth-200 text-sm">Email Alerts</p>
+                              <p className="text-xs text-earth-500">Weekly digests and critical warnings</p>
+                          </div>
+                          <input 
+                              type="checkbox" 
+                              checked={notifPrefs.emailEnabled} 
+                              onChange={(e) => handleNotifPrefChange('emailEnabled', e.target.checked)}
+                              className="w-5 h-5 text-leaf-600 rounded focus:ring-leaf-500"
+                          />
+                      </div>
+                  </div>
+              </Card>
+
+              <Card>
+                  <h2 className="font-bold text-lg text-earth-900 dark:text-earth-100 mb-4">Notification Types</h2>
+                  <div className="space-y-2">
+                      {Object.entries(notifPrefs.categories).map(([cat, enabled]) => (
+                          <label key={cat} className="flex items-center justify-between p-3 hover:bg-earth-50 dark:hover:bg-stone-800 rounded-lg cursor-pointer transition-colors">
+                              <span className="capitalize font-medium text-earth-700 dark:text-stone-300">{cat} Updates</span>
+                              <input 
+                                  type="checkbox" 
+                                  checked={enabled} 
+                                  onChange={(e) => handleNotifPrefChange(cat, e.target.checked)}
+                                  className="w-5 h-5 text-leaf-600 rounded focus:ring-leaf-500"
+                              />
+                          </label>
+                      ))}
+                  </div>
+              </Card>
+          </div>
+      )}
+
+      {activeTab === 'billing' && <BillingTab />}
 
       {activeTab === 'security' && isOwner && <SecuritySettings />}
 
       {activeTab === 'data' && <DataManagementTab />}
 
-      {activeTab === 'integrations' && <IntegrationsTab />}
-
       {activeTab === 'ai' && <AgentSettings />}
+
+      {activeTab === 'advertising' && <AdvertisingTab />}
     </div>
   );
 };

@@ -3,7 +3,7 @@ import React from 'react';
 import { IntegrationConfig } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { Cloud, Cpu, ShoppingBag, Database, Activity, RefreshCw, Settings, AlertTriangle } from 'lucide-react';
+import { Cloud, Cpu, ShoppingBag, Database, Activity, RefreshCw, Settings, AlertTriangle, Brain } from 'lucide-react';
 
 interface IntegrationCardProps {
   config: IntegrationConfig;
@@ -18,7 +18,8 @@ export const IntegrationCard: React.FC<IntegrationCardProps> = ({ config, onSync
       sensor_hardware: Cpu,
       market_feed: ShoppingBag,
       seed_catalog: Database,
-      animal_registry: Activity
+      animal_registry: Activity,
+      ai_engine: Brain
   }[config.type] || Database;
 
   return (

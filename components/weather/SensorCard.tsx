@@ -12,11 +12,7 @@ interface SensorCardProps {
       batteryLevel?: number;
       status?: string;
   };
-  latestReading?: {
-      value: number;
-      unit: string;
-      type: string;
-  };
+  latestReading?: SensorReading;
 }
 
 export const SensorCard: React.FC<SensorCardProps> = ({ sensor, latestReading }) => {

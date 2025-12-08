@@ -1,9 +1,5 @@
 
-
-
-
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation, Link } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -66,6 +62,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   });
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const isMounted = useRef(true);
   
   const location = useLocation();
 
@@ -78,19 +75,38 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     
     // Check notifications & role
     const init = async () => {
-        const count = await notificationService.getUnreadCount('main_user');
-        setUnreadCount(count);
-        
-        const user = await authService.getCurrentUser();
-        // Check if admin or owner
-        setIsAdmin(authService.hasRole(user, 'admin'));
+        if (!isMounted.current) return;
+        try {
+            const count = await notificationService.getUnreadCount('main_user');
+            if (isMounted.current) setUnreadCount(count);
+            
+            const user = await authService.getCurrentUser();
+            // Check if admin or owner
+            if (isMounted.current) {
+                const hasAdmin = authService.hasRole(user, 'admin');
+                setIsAdmin(hasAdmin);
+            }
+        } catch (e) {
+            console.error("Layout init error", e);
+        }
     };
     init();
+    
+    // Polling for notifications
     const interval = setInterval(init, 10000);
 
+    // Event listener for Auth Changes (avoids hard reload)
+    const handleAuthChange = () => {
+        console.log("Auth change detected, refreshing layout...");
+        init();
+    };
+    window.addEventListener('auth-change', handleAuthChange);
+
     return () => {
+      isMounted.current = false;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('auth-change', handleAuthChange);
       clearInterval(interval);
     };
   }, []);

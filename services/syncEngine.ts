@@ -10,12 +10,22 @@ export const syncEngine = {
 
     // --- Mock Remote Storage (Simulates Server) ---
     getRemoteStorage(): Record<string, any[]> {
-        const stored = localStorage.getItem('mock_remote_db');
-        return stored ? JSON.parse(stored) : {};
+        try {
+            const stored = localStorage.getItem('mock_remote_db');
+            return stored ? JSON.parse(stored) : {};
+        } catch (e) {
+            console.error("Failed to parse mock remote DB, resetting.", e);
+            localStorage.removeItem('mock_remote_db');
+            return {};
+        }
     },
 
     saveRemoteStorage(data: Record<string, any[]>) {
-        localStorage.setItem('mock_remote_db', JSON.stringify(data));
+        try {
+            localStorage.setItem('mock_remote_db', JSON.stringify(data));
+        } catch (e) {
+            console.error("Failed to save remote storage", e);
+        }
     },
 
     /**

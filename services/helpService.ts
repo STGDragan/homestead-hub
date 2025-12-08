@@ -6,27 +6,26 @@ import { USER_HELP_CONTENT } from '../constants';
 export const helpService = {
     
     /**
-     * Initialize DB with default content if empty
+     * Initialize DB with default content.
+     * Updates existing articles if title/content changed in constants.
      */
     async init() {
-        const articles = await dbService.getAll<HelpArticle>('help_articles');
-        if (articles.length === 0) {
-            console.log("Seeding help articles...");
-            for (const cat of USER_HELP_CONTENT) {
-                for (const art of cat.articles) {
-                    const article: HelpArticle = {
-                        id: art.id,
-                        categoryId: cat.id,
-                        title: art.title,
-                        excerpt: art.excerpt,
-                        content: `This is placeholder content for ${art.title}. In a real app, this would be full markdown text. You can edit this now!`,
-                        createdBy: 'system',
-                        createdAt: Date.now(),
-                        updatedAt: Date.now(),
-                        syncStatus: 'synced'
-                    };
-                    await dbService.put('help_articles', article);
-                }
+        console.log("Seeding help articles...");
+        for (const cat of USER_HELP_CONTENT) {
+            for (const art of cat.articles) {
+                // Upsert system articles to keep them fresh with code updates
+                const article: HelpArticle = {
+                    id: art.id,
+                    categoryId: cat.id,
+                    title: art.title,
+                    excerpt: art.excerpt,
+                    content: (art as any).content || `Detailed guide for ${art.title}...`, 
+                    createdBy: 'system',
+                    createdAt: Date.now(), // Always touch to ensure freshness in demo
+                    updatedAt: Date.now(),
+                    syncStatus: 'synced'
+                };
+                await dbService.put('help_articles', article);
             }
         }
     },

@@ -5,15 +5,13 @@ import { IntegrationConfig } from '../../types';
 import { IntegrationCard } from '../../components/integrations/IntegrationCard';
 import { IntegrationConfigModal } from '../../components/integrations/IntegrationConfigModal';
 import { Button } from '../../components/ui/Button';
-import { Plus, Link, RefreshCw, Zap, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
-import { authService } from '../../services/auth';
+import { Plus, Link, Zap, CheckCircle2, AlertTriangle } from 'lucide-react';
 
-export const IntegrationsTab: React.FC = () => {
+export const IntegrationManager: React.FC = () => {
   const [configs, setConfigs] = useState<IntegrationConfig[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingConfig, setEditingConfig] = useState<IntegrationConfig | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -22,8 +20,6 @@ export const IntegrationsTab: React.FC = () => {
   const loadData = async () => {
     const list = await integrationService.getAllConfigs();
     setConfigs(list);
-    const user = await authService.getCurrentUser();
-    setIsAdmin(authService.hasRole(user, 'admin'));
   };
 
   const handleSave = async (config: IntegrationConfig) => {
@@ -71,6 +67,7 @@ export const IntegrationsTab: React.FC = () => {
   const hasWeather = configs.some(c => c.type === 'weather');
   const hasIoT = configs.some(c => c.type === 'sensor_hardware');
   const hasMarket = configs.some(c => c.type === 'market_feed');
+  const hasAI = configs.some(c => c.type === 'ai_engine');
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -79,42 +76,44 @@ export const IntegrationsTab: React.FC = () => {
           <div className="w-full md:w-64 flex-shrink-0 space-y-4">
              <div className="p-4 bg-earth-800 rounded-xl text-white">
                 <h3 className="font-serif font-bold text-lg flex items-center gap-2">
-                   <Link size={20} className="text-leaf-300" /> Connections
+                   <Link size={20} className="text-leaf-300" /> System Connections
                 </h3>
                 <p className="text-xs text-earth-200 mt-1 opacity-80">
-                   Connect external hardware, weather providers, and seed catalogs.
+                   Configure global API keys for AI, Weather, and IoT services.
                 </p>
              </div>
              
              <Button onClick={() => { setEditingConfig(null); setShowModal(true); }} className="w-full" icon={<Plus size={16}/>}>
-                Add Integration
+                Add Connection
              </Button>
 
              <Button onClick={handleAddDemo} variant="secondary" className="w-full text-xs" icon={<Zap size={14}/>}>
                 Add Demo Connection
              </Button>
 
-             {isAdmin && (
-                 <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
-                     <h4 className="font-bold text-sm text-amber-900 dark:text-amber-100 mb-3 flex items-center gap-2">
-                         <AlertTriangle size={14} /> Admin Connection Configuration
-                     </h4>
-                     <ul className="space-y-2 text-xs">
-                         <li className={`flex items-center gap-2 ${hasWeather ? 'text-green-700 dark:text-green-400' : 'text-earth-500'}`}>
-                             {hasWeather ? <CheckCircle2 size={14}/> : <div className="w-3.5 h-3.5 border rounded-full" />}
-                             Weather Provider
-                         </li>
-                         <li className={`flex items-center gap-2 ${hasIoT ? 'text-green-700 dark:text-green-400' : 'text-earth-500'}`}>
-                             {hasIoT ? <CheckCircle2 size={14}/> : <div className="w-3.5 h-3.5 border rounded-full" />}
-                             IoT Gateway
-                         </li>
-                         <li className={`flex items-center gap-2 ${hasMarket ? 'text-green-700 dark:text-green-400' : 'text-earth-500'}`}>
-                             {hasMarket ? <CheckCircle2 size={14}/> : <div className="w-3.5 h-3.5 border rounded-full" />}
-                             Market Data Feed
-                         </li>
-                     </ul>
-                 </div>
-             )}
+             <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
+                 <h4 className="font-bold text-sm text-amber-900 dark:text-amber-100 mb-3 flex items-center gap-2">
+                     <AlertTriangle size={14} /> Service Health
+                 </h4>
+                 <ul className="space-y-2 text-xs">
+                     <li className={`flex items-center gap-2 ${hasAI ? 'text-green-700 dark:text-green-400' : 'text-earth-500'}`}>
+                         {hasAI ? <CheckCircle2 size={14}/> : <div className="w-3.5 h-3.5 border rounded-full" />}
+                         AI Engine (Gemini)
+                     </li>
+                     <li className={`flex items-center gap-2 ${hasWeather ? 'text-green-700 dark:text-green-400' : 'text-earth-500'}`}>
+                         {hasWeather ? <CheckCircle2 size={14}/> : <div className="w-3.5 h-3.5 border rounded-full" />}
+                         Weather Provider
+                     </li>
+                     <li className={`flex items-center gap-2 ${hasIoT ? 'text-green-700 dark:text-green-400' : 'text-earth-500'}`}>
+                         {hasIoT ? <CheckCircle2 size={14}/> : <div className="w-3.5 h-3.5 border rounded-full" />}
+                         IoT Gateway
+                     </li>
+                     <li className={`flex items-center gap-2 ${hasMarket ? 'text-green-700 dark:text-green-400' : 'text-earth-500'}`}>
+                         {hasMarket ? <CheckCircle2 size={14}/> : <div className="w-3.5 h-3.5 border rounded-full" />}
+                         Market Data Feed
+                     </li>
+                 </ul>
+             </div>
           </div>
 
           <div className="flex-1">
@@ -123,9 +122,9 @@ export const IntegrationsTab: React.FC = () => {
                    <div className="w-16 h-16 bg-earth-100 dark:bg-stone-800 rounded-full flex items-center justify-center mx-auto mb-4 text-earth-500">
                       <Link size={32} />
                    </div>
-                   <h3 className="font-serif font-bold text-earth-800 dark:text-earth-100 mb-2">No Active Integrations</h3>
-                   <p className="text-earth-500 dark:text-stone-400 mb-6">Connect your IoT devices or 3rd party APIs.</p>
-                   <Button variant="outline" onClick={handleAddDemo}>Load Example Connection</Button>
+                   <h3 className="font-serif font-bold text-earth-800 dark:text-earth-100 mb-2">No Active Connections</h3>
+                   <p className="text-earth-500 dark:text-stone-400 mb-6">Connect external services to power the platform.</p>
+                   <Button variant="outline" onClick={handleAddDemo}>Load Example</Button>
                 </div>
              ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

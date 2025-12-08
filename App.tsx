@@ -39,36 +39,80 @@ import { TreeDetail } from './pages/Orchard/TreeDetail';
 import { ApiaryDashboard } from './pages/Beekeeping/ApiaryDashboard';
 import { HiveDetail } from './pages/Beekeeping/HiveDetail';
 import { OnboardingWizard } from './components/onboarding/OnboardingWizard';
+import { AuthModal } from './components/auth/AuthModal';
 import { RoleGuard } from './components/auth/RoleGuard';
 import { dbService } from './services/db';
+import { authService } from './services/auth';
 import { subscriptionService } from './services/subscriptionService';
+import { libraryService } from './services/libraryService';
 import { UserProfile } from './types';
 
 export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [authKey, setAuthKey] = useState(0); // Used to force re-render on auth change
+
+  const checkAuth = async () => {
+      const user = await authService.getCurrentUser();
+      setIsAuthenticated(!!user);
+      
+      // If not authenticated, check if we need onboarding (no profile implies fresh install)
+      if (!user) {
+          const profile = await dbService.get<UserProfile>('user_profile', 'main_user');
+          setShowOnboarding(!profile);
+      } else {
+          setShowOnboarding(false);
+      }
+      setLoading(false);
+  };
 
   useEffect(() => {
     const initApp = async () => {
       try {
         await subscriptionService.initializePlans(); // Seed Plans
-        const profile = await dbService.get<UserProfile>('user_profile', 'main_user');
-        if (!profile) {
-          setShowOnboarding(true);
-        }
+        await libraryService.initSystemPlants(); // Seed Library
+        await libraryService.initSystemAnimals(); // Seed Animals
+        await checkAuth();
       } catch (e) {
         console.error("App init failed:", e);
-      } finally {
         setLoading(false);
       }
     };
     initApp();
+
+    const handleAuthChange = async () => {
+        setAuthKey(prev => prev + 1);
+        await checkAuth();
+        // Ensure user lands on dashboard after logout/login to reset view state
+        if (window.location.hash !== '#/') {
+             window.location.hash = '#/';
+        }
+    };
+    window.addEventListener('auth-change', handleAuthChange);
+    
+    // Add Storage Event Listener for cross-tab sync
+    const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'auth_session') {
+            handleAuthChange();
+        }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+        window.removeEventListener('auth-change', handleAuthChange);
+        window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const handleOnboardingComplete = () => {
-    // Explicitly reset the hash to root to prevent landing on a cached route (like /garden)
     window.location.hash = '/';
-    setShowOnboarding(false);
+    // Re-check auth logic (Onboarding now registers user)
+    checkAuth();
+  };
+
+  const handleLoginSuccess = () => {
+      checkAuth();
   };
 
   if (loading) {
@@ -86,9 +130,22 @@ export const App: React.FC = () => {
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
   }
 
+  if (!isAuthenticated) {
+      return (
+          <div className="min-h-screen bg-earth-800 dark:bg-stone-950">
+              <AuthModal 
+                  isOpen={true} 
+                  onClose={() => {}} 
+                  onSuccess={handleLoginSuccess} 
+                  canClose={false}
+              />
+          </div>
+      );
+  }
+
   return (
     <HashRouter>
-      <Layout>
+      <Layout key={authKey}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           

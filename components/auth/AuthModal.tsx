@@ -9,9 +9,10 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  canClose?: boolean;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, canClose = true }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'magic' | 'mfa'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,7 +39,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 setMode('mfa');
             } else {
                 onSuccess();
-                onClose();
+                if (canClose) onClose();
             }
         } else {
             setError(res.error || 'Login failed');
@@ -47,7 +48,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         const res = await authService.register(email, password);
         if (res.success) {
             onSuccess();
-            onClose();
+            if (canClose) onClose();
         } else {
             setError(res.error || 'Registration failed');
         }
@@ -57,7 +58,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             setInfo('Magic link sent! Check your email (or wait for auto-login demo).');
             setTimeout(() => {
                 onSuccess();
-                onClose();
+                if (canClose) onClose();
             }, 1500);
         } else {
             setError('User not found.');
@@ -66,7 +67,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           const res = await authService.verifyMfa(userId, mfaCode);
           if (res.success) {
               onSuccess();
-              onClose();
+              if (canClose) onClose();
           } else {
               setError('Invalid code');
           }
@@ -87,12 +88,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
            <h2 className="text-3xl font-serif font-bold text-white relative z-10 drop-shadow-md">
               {mode === 'login' ? 'Welcome Back' : mode === 'register' ? 'Join the Hub' : mode === 'mfa' ? '2-Step Verification' : 'Magic Link'}
            </h2>
-           <button 
-              onClick={onClose}
-              className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors z-20"
-           >
-              <X size={24} />
-           </button>
+           {canClose && (
+               <button 
+                  onClick={onClose}
+                  className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors z-20"
+               >
+                  <X size={24} />
+               </button>
+           )}
         </div>
 
         <div className="p-8">

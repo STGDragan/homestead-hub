@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/Button';
-import { Camera, X, Upload, Sprout, PawPrint, Zap } from 'lucide-react';
+import { Camera, X, Upload, Sprout, PawPrint, Zap, Brain, AlertTriangle } from 'lucide-react';
 import { HealthSubjectType } from '../../types';
+import { integrationService } from '../../services/integrationService';
 
 interface ScannerModalProps {
   onScan: (file: Blob, type: HealthSubjectType) => void;
@@ -13,6 +14,11 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({ onScan, onClose }) =
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [subjectType, setSubjectType] = useState<HealthSubjectType>('plant');
+  const [hasAI, setHasAI] = useState(false);
+
+  useEffect(() => {
+      integrationService.getApiKey('google_gemini').then(k => setHasAI(!!k));
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -43,6 +49,20 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({ onScan, onClose }) =
 
         {/* Content */}
         <div className="p-6 flex-1 overflow-y-auto">
+           
+           {/* AI Status Badge */}
+           <div className="mb-6 flex justify-center">
+               {hasAI ? (
+                   <span className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold shadow-sm">
+                       <Brain size={14} /> Gemini AI Connected
+                   </span>
+               ) : (
+                   <span className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold shadow-sm">
+                       <AlertTriangle size={14} /> Offline Mode (Mock)
+                   </span>
+               )}
+           </div>
+
            {!imageSrc ? (
              <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
@@ -100,7 +120,7 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({ onScan, onClose }) =
                 </div>
 
                 <Button onClick={handleConfirm} className="w-full py-4 text-lg" icon={<Zap size={20} />}>
-                   Analyze Photo
+                   {hasAI ? 'Run AI Analysis' : 'Analyze (Mock)'}
                 </Button>
              </div>
            )}

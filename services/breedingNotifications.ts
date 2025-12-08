@@ -1,4 +1,3 @@
-
 import { BreedingLog, NotificationTask, SpeciesType } from '../types';
 import { dbService } from './db';
 
@@ -39,6 +38,13 @@ export const breedingNotifications = {
       priority: 'high',
       title: `Due Date Approaching: ${species.charAt(0).toUpperCase() + species.slice(1)}`,
       notes: `Expected birth around ${dueDate.toLocaleDateString()}`,
+      description: `Prepare for birth of ${species}. Check supplies.`,
+      category: 'livestock',
+      season: 'all',
+      dueDate: dueDate.getTime(),
+      completed: false,
+      isRecurring: false,
+      recurrencePattern: 'none',
       createdAt: Date.now(),
       updatedAt: Date.now(),
       syncStatus: 'pending'
@@ -54,9 +60,16 @@ export const breedingNotifications = {
             type: 'pregnancy_check',
             status: 'pending',
             scheduledAt: checkDate.getTime(),
-            priority: 'normal',
+            priority: 'medium', // Fixed from 'normal'
             title: `Pregnancy Check (${day} days)`,
             notes: 'Check for signs of pregnancy or confirm via vet.',
+            description: `Verify pregnancy status for ${species} mated on ${matingDate.toLocaleDateString()}.`,
+            category: 'livestock',
+            season: 'all',
+            dueDate: checkDate.getTime(),
+            completed: false,
+            isRecurring: false,
+            recurrencePattern: 'none',
             createdAt: Date.now(),
             updatedAt: Date.now(),
             syncStatus: 'pending'

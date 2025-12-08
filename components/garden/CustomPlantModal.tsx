@@ -1,12 +1,11 @@
 
-
 import React, { useState } from 'react';
 import { PlantTemplate, ExperienceLevel } from '../../types';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { X, Sprout, Upload, Image as ImageIcon, BookOpen, ChevronRight } from 'lucide-react';
-import { PLANT_LIBRARY } from '../../constants';
+import { PLANT_LIBRARY, COMMON_PLANTS } from '../../constants';
 
 interface CustomPlantModalProps {
   onSave: (plant: PlantTemplate) => void;
@@ -50,16 +49,26 @@ export const CustomPlantModal: React.FC<CustomPlantModalProps> = ({ onSave, onCl
   const handleLibPlantChange = (plantName: string) => {
     setSelectedLibPlantName(plantName);
     const group = PLANT_LIBRARY.find(g => g.group === selectedGroup);
-    const plant = group?.items.find(i => i.name === plantName);
+    const libraryItem = group?.items.find(i => i.name === plantName);
+    const template = COMMON_PLANTS.find(p => p.name === plantName);
     
-    if (plant) {
-        setName(plant.name);
-        setSpacing(plant.spacing.toString());
-        setHeight(plant.height);
-        setDays(plant.days.toString());
-        setPlantingMethod(plant.plantingMethod || 'direct');
-        setWeeksOffset(plant.weeksRelativeToFrost?.toString() || '0');
+    if (template) {
+        setName(template.name);
+        setSpacing(template.spacing.toString());
+        setHeight(template.height);
+        setDays(template.daysToMaturity.toString());
+        setPlantingMethod(template.plantingMethod || 'direct');
+        setWeeksOffset(template.weeksRelativeToFrost?.toString() || '0');
         setVariety(''); // Reset variety
+    } else if (libraryItem) {
+        setName(libraryItem.name);
+        // Defaults for items not in COMMON_PLANTS
+        setSpacing('12');
+        setHeight('medium');
+        setDays('60');
+        setPlantingMethod('direct');
+        setWeeksOffset('0');
+        setVariety('');
     }
   };
 
@@ -88,7 +97,10 @@ export const CustomPlantModal: React.FC<CustomPlantModalProps> = ({ onSave, onCl
       description,
       careInstructions,
       plantingMethod,
-      weeksRelativeToFrost: parseInt(weeksOffset)
+      weeksRelativeToFrost: parseInt(weeksOffset),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      syncStatus: 'pending'
     };
     onSave(newPlant);
   };

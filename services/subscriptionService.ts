@@ -1,4 +1,3 @@
-
 import { dbService } from './db';
 import { Subscription, SubscriptionPlan, TrialCode, SubscriptionLog, UserProfile, FeatureAccessCache } from '../types';
 
@@ -62,26 +61,47 @@ export const subscriptionService = {
      * Initialize default plans if DB is empty
      */
     async initializePlans() {
-        const plans = await dbService.getAll<SubscriptionPlan>('subscription_plans');
-        if (plans.length === 0) {
-            console.log('Seeding default subscription plans...');
-            for (const plan of DEFAULT_PLANS) {
-                await dbService.put('subscription_plans', plan);
+        try {
+            const plans = await dbService.getAll<SubscriptionPlan>('subscription_plans');
+            if (plans.length === 0) {
+                console.log('Seeding default subscription plans...');
+                for (const plan of DEFAULT_PLANS) {
+                    await dbService.put('subscription_plans', plan);
+                }
             }
+        } catch (e) {
+            console.error("Failed to initialize plans", e);
         }
     },
 
     async getPlans(): Promise<SubscriptionPlan[]> {
-        const plans = await dbService.getAll<SubscriptionPlan>('subscription_plans');
-        return plans.filter(p => p.isActive);
+        try {
+            const plans = await dbService.getAll<SubscriptionPlan>('subscription_plans');
+            return plans.filter(p => p.isActive);
+        } catch(e) {
+            console.error("Error fetching plans", e);
+            return [];
+        }
     },
 
     async getAdminPlans(): Promise<SubscriptionPlan[]> {
         return await dbService.getAll<SubscriptionPlan>('subscription_plans');
     },
 
+    async getAllCodes(): Promise<TrialCode[]> {
+        return await dbService.getAll<TrialCode>('trial_codes');
+    },
+
     async savePlan(plan: SubscriptionPlan): Promise<void> {
         await dbService.put('subscription_plans', plan);
+    },
+
+    async deletePlan(id: string): Promise<void> {
+        await dbService.delete('subscription_plans', id);
+    },
+
+    async deleteCode(id: string): Promise<void> {
+        await dbService.delete('trial_codes', id);
     },
 
     /**
@@ -125,26 +145,28 @@ export const subscriptionService = {
         if (activeSub) {
             const plan = await dbService.get<SubscriptionPlan>('subscription_plans', activeSub.planId);
             if (plan) {
-                features = plan.features;
+                features = plan.features || [];
                 planSlug = plan.slug;
             }
         } else {
             // Fallback to Free Plan
             const freePlan = (await this.getPlans()).find(p => p.slug === 'free');
-            if (freePlan) features = freePlan.features;
+            if (freePlan) features = freePlan.features || [];
         }
 
         // 3. Update Cache
         const newCache: FeatureAccessCache = {
+            id: cacheKey,
             userId: cacheKey, // Using ID as Key for store compatibility
             features,
             planSlug,
-            lastChecked: Date.now()
+            lastChecked: Date.now(),
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            syncStatus: 'synced'
         };
         // Note: feature_access_cache store structure assumes id is keyPath
-        // We'll just cast it to any to save it, or adjust store def. 
-        // For now, let's assume we save it with id = cacheKey
-        await dbService.put('feature_access_cache', { ...newCache, id: cacheKey, createdAt: Date.now(), updatedAt: Date.now(), syncStatus: 'synced' } as any);
+        await dbService.put('feature_access_cache', newCache);
 
         return features.includes(featureKey);
     },
@@ -242,17 +264,29 @@ export const subscriptionService = {
         return true;
     },
 
-    async generateTrialCode(planId: string, durationDays: number, usageLimit: number): Promise<string> {
-        const codeStr = 'TRIAL-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    async createPromoCode(
+        planId: string, 
+        codeStr: string | null, 
+        campaign: string, 
+        durationDays: number, 
+        usageLimit: number
+    ): Promise<string> {
+        // If codeStr is provided, use it, else generate one
+        const finalCode = codeStr || ('PROMO-' + Math.random().toString(36).substr(2, 6).toUpperCase());
         
+        // Check duplicate
+        const existing = await dbService.getByIndex<TrialCode>('trial_codes', 'code', finalCode);
+        if (existing) throw new Error(`Code ${finalCode} already exists.`);
+
         const code: TrialCode = {
             id: crypto.randomUUID(),
-            code: codeStr,
+            code: finalCode,
+            campaign,
             planId,
             durationDays,
             usageLimit,
             usageCount: 0,
-            expirationDate: Date.now() + (90 * 24 * 60 * 60 * 1000), // 90 days validity for the code itself
+            expirationDate: Date.now() + (365 * 24 * 60 * 60 * 1000), // Default 1 year exp
             createdBy: 'admin',
             createdAt: Date.now(),
             updatedAt: Date.now(),
@@ -260,7 +294,12 @@ export const subscriptionService = {
         };
 
         await dbService.put('trial_codes', code);
-        return codeStr;
+        return finalCode;
+    },
+
+    // Legacy support alias
+    async generateTrialCode(planId: string, durationDays: number, usageLimit: number): Promise<string> {
+        return this.createPromoCode(planId, null, 'Generated', durationDays, usageLimit);
     },
 
     async logActivity(userId: string, action: SubscriptionLog['action'], planId: string, notes?: string) {

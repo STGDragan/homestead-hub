@@ -1,21 +1,22 @@
 
-
-
 import React, { useEffect, useState } from 'react';
 import { dbService } from '../../services/db';
 import { AdminStat, FlaggedItem, AuthUser } from '../../types';
 import { authService } from '../../services/auth';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Shield, Activity, DollarSign, BookOpen, Search, Check, AlertTriangle, X, Database, CreditCard, Users as UsersIcon } from 'lucide-react';
+import { Shield, Activity, DollarSign, BookOpen, Search, Check, AlertTriangle, X, Database, CreditCard, Users as UsersIcon, Megaphone, Briefcase, Leaf, Link } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { SponsorManager } from '../../components/monetization/SponsorManager';
 import { CampaignManager } from './CampaignManager';
-import { UserManagement } from './UserManagement'; // Import
+import { UserManagement } from './UserManagement';
+import { SubscriptionAdmin } from './SubscriptionAdmin';
+import { LibraryAdmin } from './LibraryAdmin';
+import { IntegrationManager } from '../../components/admin/IntegrationManager';
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'moderation' | 'sales' | 'billing'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'moderation' | 'sponsors' | 'campaigns' | 'billing' | 'library' | 'integrations'>('overview');
   const [stats, setStats] = useState<AdminStat[]>([]);
   const [flags, setFlags] = useState<FlaggedItem[]>([
      { id: 'f1', targetId: 'm1', targetType: 'listing', reason: 'Prohibited Item', reportedBy: 'u2', timestamp: Date.now() - 100000, status: 'pending' },
@@ -46,6 +47,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const isOwner = authService.hasRole(authUser, 'owner');
+  const isAdmin = authService.hasRole(authUser, 'admin');
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -70,10 +72,21 @@ export const AdminDashboard: React.FC = () => {
          
          {isOwner && <button onClick={() => setActiveTab('users')} className={`pb-3 px-2 font-bold text-sm border-b-2 capitalize transition-colors whitespace-nowrap ${activeTab === 'users' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-stone-500 hover:text-earth-800 dark:hover:text-stone-300'}`}>Users</button>}
          
+         {(isAdmin || isOwner) && <button onClick={() => setActiveTab('library')} className={`pb-3 px-2 font-bold text-sm border-b-2 capitalize transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'library' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-stone-500 hover:text-earth-800 dark:hover:text-stone-300'}`}><Leaf size={14}/> Library</button>}
+
+         {(isAdmin || isOwner) && <button onClick={() => setActiveTab('integrations')} className={`pb-3 px-2 font-bold text-sm border-b-2 capitalize transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'integrations' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-stone-500 hover:text-earth-800 dark:hover:text-stone-300'}`}><Link size={14}/> Connections</button>}
+
          <button onClick={() => setActiveTab('moderation')} className={`pb-3 px-2 font-bold text-sm border-b-2 capitalize transition-colors whitespace-nowrap ${activeTab === 'moderation' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-stone-500 hover:text-earth-800 dark:hover:text-stone-300'}`}>Moderation</button>
-         <button onClick={() => setActiveTab('sales')} className={`pb-3 px-2 font-bold text-sm border-b-2 capitalize transition-colors whitespace-nowrap ${activeTab === 'sales' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-stone-500 hover:text-earth-800 dark:hover:text-stone-300'}`}>Ad Campaigns</button>
          
-         {isOwner && <button onClick={() => setActiveTab('billing')} className={`pb-3 px-2 font-bold text-sm border-b-2 capitalize transition-colors whitespace-nowrap ${activeTab === 'billing' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-stone-500 hover:text-earth-800 dark:hover:text-stone-300'}`}>Billing</button>}
+         <button onClick={() => setActiveTab('sponsors')} className={`pb-3 px-2 font-bold text-sm border-b-2 capitalize transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'sponsors' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-stone-500 hover:text-earth-800 dark:hover:text-stone-300'}`}>
+            <Briefcase size={14} /> Sponsors
+         </button>
+         
+         <button onClick={() => setActiveTab('campaigns')} className={`pb-3 px-2 font-bold text-sm border-b-2 capitalize transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === 'campaigns' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-stone-500 hover:text-earth-800 dark:hover:text-stone-300'}`}>
+            <Megaphone size={14} /> Ad Campaigns
+         </button>
+         
+         {(isAdmin || isOwner) && <button onClick={() => setActiveTab('billing')} className={`pb-3 px-2 font-bold text-sm border-b-2 capitalize transition-colors whitespace-nowrap ${activeTab === 'billing' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-stone-500 hover:text-earth-800 dark:hover:text-stone-300'}`}>Billing & Plans</button>}
       </div>
 
       {/* OVERVIEW TAB */}
@@ -97,17 +110,15 @@ export const AdminDashboard: React.FC = () => {
 
             <div className="grid md:grid-cols-2 gap-6">
                <Card>
-                  <h3 className="font-bold text-earth-900 dark:text-earth-100 mb-4 flex items-center gap-2"><Activity size={18}/> Recent Activity</h3>
-                  <div className="space-y-3">
-                     {[1,2,3].map(i => (
-                        <div key={i} className="flex items-center gap-3 text-sm pb-2 border-b border-earth-100 dark:border-stone-800 last:border-0">
-                           <div className="w-2 h-2 rounded-full bg-blue-500" />
-                           <span className="text-earth-600 dark:text-stone-300">New user registration</span>
-                           <span className="ml-auto text-xs text-earth-400">2m ago</span>
-                        </div>
-                     ))}
+                  <div className="flex justify-between items-center mb-4">
+                     <h3 className="font-bold text-earth-900 dark:text-earth-100 flex items-center gap-2"><Link size={18}/> System Connections</h3>
+                     <Button size="sm" onClick={() => setActiveTab('integrations')}>Configure</Button>
                   </div>
+                  <p className="text-sm text-earth-600 dark:text-stone-300 mb-4">
+                     Manage API keys for required services (Weather, IoT, AI, Market Data).
+                  </p>
                </Card>
+
                <Card>
                   <h3 className="font-bold text-earth-900 dark:text-earth-100 mb-4 flex items-center gap-2"><DollarSign size={18}/> Revenue Pipeline</h3>
                   <div className="space-y-4">
@@ -126,8 +137,14 @@ export const AdminDashboard: React.FC = () => {
          </div>
       )}
 
+      {/* INTEGRATIONS TAB */}
+      {activeTab === 'integrations' && (isAdmin || isOwner) && <IntegrationManager />}
+
       {/* USERS TAB (Owner Only) */}
       {activeTab === 'users' && isOwner && <UserManagement />}
+
+      {/* LIBRARY TAB */}
+      {activeTab === 'library' && (isAdmin || isOwner) && <LibraryAdmin />}
 
       {/* MODERATION TAB */}
       {activeTab === 'moderation' && (
@@ -162,55 +179,24 @@ export const AdminDashboard: React.FC = () => {
          </div>
       )}
 
-      {/* SALES / ADS TAB */}
-      {activeTab === 'sales' && (
-         <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-               <SponsorManager />
-            </div>
-            <div className="lg:col-span-2">
-               <CampaignManager />
-            </div>
+      {/* SPONSOR CRM TAB */}
+      {activeTab === 'sponsors' && (
+         <div className="grid grid-cols-1">
+            <SponsorManager />
          </div>
       )}
 
-      {/* BILLING TAB (Owner Only) */}
-      {activeTab === 'billing' && isOwner && (
+      {/* CAMPAIGNS TAB */}
+      {activeTab === 'campaigns' && (
+         <div className="grid grid-cols-1">
+            <CampaignManager />
+         </div>
+      )}
+
+      {/* BILLING TAB (Admin & Owner) */}
+      {activeTab === 'billing' && (isAdmin || isOwner) && (
          <div className="space-y-6">
-            <Card>
-               <h3 className="font-bold text-lg text-earth-900 dark:text-earth-100 mb-4 flex items-center gap-2">
-                  <CreditCard size={20} className="text-leaf-600"/> Platform Subscriptions
-               </h3>
-               <div className="space-y-2">
-                  <div className="flex justify-between items-center p-3 bg-earth-50 dark:bg-stone-800 rounded-xl border border-earth-200 dark:border-stone-700">
-                     <div>
-                        <p className="font-bold text-earth-900 dark:text-earth-100">Free Tier</p>
-                        <p className="text-xs text-earth-500">1200 Users</p>
-                     </div>
-                     <span className="font-bold text-earth-600 dark:text-stone-400">$0 MRR</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-earth-50 dark:bg-stone-800 rounded-xl border border-earth-200 dark:border-stone-700">
-                     <div>
-                        <p className="font-bold text-earth-900 dark:text-earth-100">Homesteader Pro</p>
-                        <p className="text-xs text-earth-500">43 Users</p>
-                     </div>
-                     <span className="font-bold text-leaf-600">$214 MRR</span>
-                  </div>
-               </div>
-            </Card>
-            
-            <div className="bg-white dark:bg-stone-900 border border-earth-200 dark:border-stone-800 rounded-xl p-4">
-               <h3 className="font-bold text-sm text-earth-500 uppercase mb-4">Ad Invoices</h3>
-               <div className="space-y-3">
-                  {[1,2].map(i => (
-                     <div key={i} className="flex justify-between items-center text-sm">
-                        <span className="text-earth-800 dark:text-stone-300">INV-2024-00{i} (Sponsor {i})</span>
-                        <span className="font-bold text-earth-600">$500.00</span>
-                        <span className="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded">Paid</span>
-                     </div>
-                  ))}
-               </div>
-            </div>
+            <SubscriptionAdmin />
          </div>
       )}
     </div>

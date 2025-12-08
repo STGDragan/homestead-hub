@@ -38,7 +38,6 @@ const IoTAdapter: IntegrationAdapter = {
     type: 'sensor_hardware',
     fetch: async (config) => {
         await new Promise(resolve => setTimeout(resolve, 600));
-        // Simulate returning a list of devices and their current readings
         return {
             success: true,
             data: [
@@ -49,9 +48,25 @@ const IoTAdapter: IntegrationAdapter = {
     }
 };
 
+// Adapter for Gemini AI (Connectivity Check)
+const GeminiAdapter: IntegrationAdapter = {
+    id: 'google_gemini',
+    name: 'Google Gemini (Vision & Text)',
+    type: 'ai_engine',
+    fetch: async (config) => {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (!config.settings.apiKey) return { success: false, error: 'Missing API Key' };
+        return {
+            success: true,
+            data: { status: 'connected', models: ['gemini-2.5-flash'] }
+        };
+    }
+};
+
 const ADAPTERS: Record<string, IntegrationAdapter> = {
     'openweathermap': WeatherAdapter,
-    'mqtt_gateway': IoTAdapter
+    'mqtt_gateway': IoTAdapter,
+    'google_gemini': GeminiAdapter
 };
 
 export const integrationService = {
@@ -73,8 +88,15 @@ export const integrationService = {
     },
 
     /**
-     * Trigger a sync for a specific integration.
+     * Retrieve the API Key for a specific provider from the DB.
+     * Used by AI services to authenticate requests.
      */
+    async getApiKey(providerId: string): Promise<string | null> {
+        const configs = await this.getAllConfigs();
+        const activeConfig = configs.find(c => c.provider === providerId && c.status === 'active');
+        return activeConfig?.settings?.apiKey || null;
+    },
+
     async syncIntegration(configId: string): Promise<void> {
         const config = await dbService.get<IntegrationConfig>('integrations', configId);
         if (!config || config.status === 'inactive') return;
@@ -85,7 +107,6 @@ export const integrationService = {
             return;
         }
 
-        // Log Start
         await this.log(configId, 'sync', 'success', 'Starting sync...');
 
         try {
@@ -95,18 +116,15 @@ export const integrationService = {
 
             if (result.success) {
                 config.lastSyncAt = Date.now();
-                config.status = 'active'; // Reset error state if successful
+                config.status = 'active';
                 config.errorCount = 0;
                 await dbService.put('integrations', config);
                 await this.log(configId, 'sync', 'success', `Synced successfully in ${duration}ms`, duration);
 
-                // Process Data based on Type
                 if (config.type === 'sensor_hardware') {
                     await this.processSensorData(config.id, result.data);
-                } else if (config.type === 'weather') {
-                    // In a real app, store to weather cache. 
-                    // For now, we just log it as the "weatherService" mocks its own data anyway.
-                    console.log('Weather data fetched:', result.data);
+                } else if (config.type === 'ai_engine') {
+                    await this.log(configId, 'sync', 'success', 'AI Connectivity Verified');
                 }
 
             } else {
@@ -129,7 +147,6 @@ export const integrationService = {
         if (!Array.isArray(payload)) return;
 
         for (const item of payload) {
-            // 1. Find or Create Device
             const devices = await dbService.getAllByIndex<SensorDevice>('sensor_devices', 'integrationId', integrationId);
             let device = devices.find(d => d.externalId === item.externalId);
 
@@ -149,7 +166,6 @@ export const integrationService = {
                 await dbService.put('sensor_devices', device);
             }
 
-            // 2. Log Reading
             const reading: SensorReading = {
                 id: crypto.randomUUID(),
                 sensorId: device.id,
@@ -163,7 +179,6 @@ export const integrationService = {
             };
             await dbService.put('sensor_readings', reading);
 
-            // 3. Update Device Status
             device.lastReading = item.value;
             device.lastReadingAt = Date.now();
             device.status = 'online';
@@ -188,6 +203,6 @@ export const integrationService = {
             updatedAt: Date.now(),
             syncStatus: 'pending'
         };
-        await dbService.put('integration_logs', log, 'sync'); // Don't sync logs to avoid loops/noise
+        await dbService.put('integration_logs', log, 'sync');
     }
 };

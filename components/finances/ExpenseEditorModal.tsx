@@ -5,8 +5,10 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { EXPENSE_CATEGORIES } from '../../constants';
-import { X, DollarSign, Calendar, Tag } from 'lucide-react';
+import { X, DollarSign, Calendar, Tag, Camera, Sparkles, Upload, FileText, Trash2, Brain } from 'lucide-react';
 import { dbService } from '../../services/db';
+import { financeAI } from '../../services/financeAI';
+import { integrationService } from '../../services/integrationService';
 
 interface ExpenseEditorModalProps {
   expense?: Expense | null;
@@ -27,11 +29,17 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
   const [date, setDate] = useState(expense?.date ? new Date(expense.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
   const [isRecurring, setIsRecurring] = useState(expense?.isRecurring || false);
   const [recurrenceInterval, setRecurrenceInterval] = useState<RecurrenceType>(expense?.recurrenceInterval || 'monthly');
+  const [receiptUrl, setReceiptUrl] = useState(expense?.receiptUrl || '');
   
   // Allocations
   const [allocationType, setAllocationType] = useState<'general' | 'herd' | 'bed'>(expense?.allocationType || 'general');
   const [allocationId, setAllocationId] = useState(expense?.allocationId || '');
   
+  // OCR State
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanConfidence, setScanConfidence] = useState<number | null>(null);
+  const [hasAI, setHasAI] = useState(false);
+
   // Loaded options
   const [herds, setHerds] = useState<HerdGroup[]>([]);
   const [beds, setBeds] = useState<GardenBed[]>([]);
@@ -40,9 +48,39 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
     const loadAllocations = async () => {
        setHerds(await dbService.getAll<HerdGroup>('herds'));
        setBeds(await dbService.getAll<GardenBed>('garden_beds'));
+       const key = await integrationService.getApiKey('google_gemini');
+       setHasAI(!!key);
     };
     loadAllocations();
   }, []);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const url = URL.createObjectURL(file);
+          setReceiptUrl(url);
+          
+          // Trigger AI Scan
+          setIsScanning(true);
+          try {
+              const result = await financeAI.parseReceipt(file, herds, beds);
+              
+              // Auto-fill logic
+              if (result.amount) setAmount(result.amount.toString());
+              if (result.description) setDescription(result.description);
+              if (result.category) setCategory(result.category);
+              if (result.date) setDate(new Date(result.date).toISOString().split('T')[0]);
+              if (result.allocationType) setAllocationType(result.allocationType);
+              if (result.allocationId) setAllocationId(result.allocationId);
+              
+              setScanConfidence(result.confidence);
+          } catch (err) {
+              console.error("OCR Failed", err);
+          } finally {
+              setIsScanning(false);
+          }
+      }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +94,7 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
       recurrenceInterval: isRecurring ? recurrenceInterval : 'none',
       allocationType,
       allocationId: allocationType === 'general' ? undefined : allocationId,
+      receiptUrl,
       createdAt: expense?.createdAt,
     });
   };
@@ -73,10 +112,63 @@ export const ExpenseEditorModal: React.FC<ExpenseEditorModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           
+          {/* Receipt Upload / Scan Area */}
+          <div className="relative group">
+              <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-bold text-earth-700 dark:text-earth-300">Receipt Image</label>
+                  {hasAI ? (
+                      <span className="text-[10px] bg-leaf-100 text-leaf-800 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                          <Brain size={10} /> Gemini OCR Ready
+                      </span>
+                  ) : (
+                      <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                          <Sparkles size={10} /> Basic Mode (Offline)
+                      </span>
+                  )}
+              </div>
+
+              {receiptUrl ? (
+                  <div className="relative h-32 w-full rounded-xl overflow-hidden border border-earth-200 dark:border-stone-700 bg-black">
+                      <img src={receiptUrl} alt="Receipt" className="w-full h-full object-contain opacity-80" />
+                      <button 
+                        type="button"
+                        onClick={() => { setReceiptUrl(''); setScanConfidence(null); }}
+                        className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full hover:bg-red-700"
+                      >
+                          <Trash2 size={14} />
+                      </button>
+                      {scanConfidence && (
+                          <div className="absolute bottom-2 left-2 bg-leaf-600 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 shadow-md">
+                              <Sparkles size={10} /> Auto-Filled ({(scanConfidence * 100).toFixed(0)}%)
+                          </div>
+                      )}
+                  </div>
+              ) : (
+                  <div className={`
+                      h-32 w-full rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-colors
+                      ${isScanning ? 'bg-leaf-50 border-leaf-400 animate-pulse' : 'bg-earth-50 dark:bg-stone-800 border-earth-300 dark:border-stone-600 hover:bg-earth-100 dark:hover:bg-stone-700'}
+                  `}>
+                      <input type="file" accept="image/*" capture="environment" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={handleFileChange} disabled={isScanning} />
+                      {isScanning ? (
+                          <>
+                              <Sparkles size={24} className="text-leaf-600 animate-spin mb-2" />
+                              <span className="text-xs font-bold text-leaf-700">Analyzing Receipt...</span>
+                          </>
+                      ) : (
+                          <>
+                              <Camera size={24} className="text-earth-400 mb-2" />
+                              <span className="text-sm font-bold text-earth-600 dark:text-stone-300">Scan Receipt</span>
+                              <span className="text-[10px] text-earth-400">Auto-fill details & allocation</span>
+                          </>
+                      )}
+                  </div>
+              )}
+          </div>
+
           {/* Amount Input */}
           <Input 
             label="Amount"
-            autoFocus
+            autoFocus={!receiptUrl}
             type="number"
             step="0.01"
             icon={<DollarSign size={16} />}

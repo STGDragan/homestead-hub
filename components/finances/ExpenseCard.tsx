@@ -2,7 +2,7 @@
 import React from 'react';
 import { Expense } from '../../types';
 import { Card } from '../ui/Card';
-import { Tag, Calendar } from 'lucide-react';
+import { Tag, Calendar, FileText } from 'lucide-react';
 
 interface ExpenseCardProps {
   expense: Expense;
@@ -24,6 +24,11 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onClick }) =>
                Recurring
              </span>
            )}
+           {expense.receiptUrl && (
+             <span className="text-earth-400" title="Receipt Attached">
+                <FileText size={14} />
+             </span>
+           )}
         </div>
         <div className="flex items-center gap-3 text-xs text-earth-500 dark:text-night-400">
            <span className="flex items-center gap-1">
@@ -34,6 +39,11 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, onClick }) =>
               <Tag size={12} />
               {expense.category}
            </span>
+           {expense.allocationType && expense.allocationType !== 'general' && (
+               <span className="bg-leaf-50 dark:bg-leaf-900/20 text-leaf-700 dark:text-leaf-300 px-1.5 py-0.5 rounded capitalize">
+                   {expense.allocationType}
+               </span>
+           )}
         </div>
       </div>
       
