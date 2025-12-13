@@ -2,6 +2,11 @@
 
 
 import React, { useEffect, useState } from 'react';
+import { authService } from './services/auth';
+
+useEffect(() => {
+  authService.getSession();
+}, []);
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
