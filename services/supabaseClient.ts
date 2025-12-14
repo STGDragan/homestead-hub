@@ -28,7 +28,7 @@ const isUrlValid = (url: string) => {
 const isConfigured = 
     targetUrl !== '' && 
     targetKey !== '' && 
-    targetKey !== 'INSERT_YOUR_ANON_KEY_HERE';
+    targetKey !== 'sb_publishable_rHUNPb6YjGECWkhOpKxU0w_1v8DiLr2';
 
 let client;
 
