@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 // Every user who loads the app will connect to this backend.
 
 const HARDCODED_URL = 'https://psrofmaojlttfyrsarrc.supabase.co'; // Pre-filled from your logs
-const HARDCODED_KEY = 'sb_publishable_rHUNPb6YjGECWkhOpKxU0w_1v8DiLr2'; // <--- PASTE YOUR KEY HERE ONCE
+const HARDCODED_KEY = 'sb_secret_O3v9_48MTS6tL8CuQUo2Dg_4jbJ1hJK'; // <--- PASTE YOUR KEY HERE ONCE
 
 // --------------------------------
 
@@ -28,7 +28,7 @@ const isUrlValid = (url: string) => {
 const isConfigured = 
     targetUrl !== '' && 
     targetKey !== '' && 
-    targetKey !== 'sb_publishable_rHUNPb6YjGECWkhOpKxU0w_1v8DiLr2';
+    targetKey !== 'sb_secret_O3v9_48MTS6tL8CuQUo2Dg_4jbJ1hJK';
 
 let client;
 
