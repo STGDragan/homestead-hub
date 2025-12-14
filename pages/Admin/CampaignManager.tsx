@@ -1,13 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../../services/db';
+import { billingService } from '../../services/billingService';
 import { AdCampaign, Sponsor, CampaignType, AdStatus, AdCreative, AdEvent } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input, TextArea } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Card } from '../../components/ui/Card';
-import { Plus, Search, Filter, PlayCircle, PauseCircle, Trash2, Eye, MousePointer2, Image as ImageIcon, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Search, Filter, PlayCircle, PauseCircle, Trash2, Eye, MousePointer2, Image as ImageIcon, CheckCircle, XCircle, FileText, Check } from 'lucide-react';
 import { AD_PLACEMENT_AREAS, CAMPAIGN_TYPES } from '../../constants';
+import { CreativeReviewModal } from '../../components/admin/CreativeReviewModal';
 
 // --- Components ---
 
@@ -16,7 +18,9 @@ const CampaignList: React.FC<{
     sponsors: Sponsor[]; 
     onEdit: (c: AdCampaign) => void; 
     onToggleStatus: (c: AdCampaign) => void;
-}> = ({ campaigns, sponsors, onEdit, onToggleStatus }) => {
+    onReview: (c: AdCampaign) => void;
+    onInvoice: (c: AdCampaign) => void;
+}> = ({ campaigns, sponsors, onEdit, onToggleStatus, onReview, onInvoice }) => {
     return (
         <div className="bg-white dark:bg-stone-900 border border-earth-200 dark:border-stone-800 rounded-xl overflow-hidden">
             <table className="w-full text-sm text-left">
@@ -43,7 +47,7 @@ const CampaignList: React.FC<{
                                 <span className="bg-earth-100 dark:bg-stone-800 px-2 py-1 rounded text-xs font-mono">{c.type}</span>
                             </td>
                             <td className="px-4 py-3">
-                                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${c.status === 'active' ? 'bg-green-100 text-green-800' : c.status === 'paused' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
+                                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${c.status === 'active' ? 'bg-green-100 text-green-800' : c.status === 'reviewing' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
                                     {c.status}
                                 </span>
                             </td>
@@ -51,10 +55,18 @@ const CampaignList: React.FC<{
                                 {new Date(c.startDate).toLocaleDateString()} - {new Date(c.endDate).toLocaleDateString()}
                             </td>
                             <td className="px-4 py-3 text-right flex justify-end gap-2">
-                                <button onClick={() => onToggleStatus(c)} className="text-earth-400 hover:text-leaf-600">
-                                    {c.status === 'active' ? <PauseCircle size={16}/> : <PlayCircle size={16}/>}
-                                </button>
-                                <button onClick={() => onEdit(c)} className="text-earth-400 hover:text-earth-700 font-bold text-xs">Edit</button>
+                                {c.status === 'reviewing' && (
+                                    <Button size="sm" className="h-7 text-xs px-2" onClick={() => onReview(c)}>Review</Button>
+                                )}
+                                {c.status === 'approved' && (
+                                    <Button size="sm" variant="secondary" className="h-7 text-xs px-2" onClick={() => onInvoice(c)}>Bill</Button>
+                                )}
+                                {c.status === 'active' || c.status === 'paused' ? (
+                                    <button onClick={() => onToggleStatus(c)} className="text-earth-400 hover:text-leaf-600">
+                                        {c.status === 'active' ? <PauseCircle size={16}/> : <PlayCircle size={16}/>}
+                                    </button>
+                                ) : null}
+                                <button onClick={() => onEdit(c)} className="text-earth-400 hover:text-earth-700 font-bold text-xs ml-2">Edit</button>
                             </td>
                         </tr>
                     ))}
@@ -100,8 +112,8 @@ const CampaignEditor: React.FC<{
             fileUrl: creativeUrl,
             clickUrl: targetUrl,
             altText,
-            format: 'card', // Simplified for now
-            approved: true // Auto-approve for demo
+            format: 'card', 
+            approved: campaign?.creatives?.[0]?.approved || false // Reset approval on edit unless already approved? Keeping simple.
         };
 
         const newCampaign: AdCampaign = {
@@ -165,6 +177,10 @@ const CampaignEditor: React.FC<{
                     <Input label="Start Date" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required />
                     <Input label="End Date" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
                     <Input label="Priority (1-10)" type="number" min="1" max="10" value={priority} onChange={e => setPriority(e.target.value)} />
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                    <Input label="Price ($)" type="number" value={price} onChange={e => setPrice(e.target.value)} />
                 </div>
 
                 {/* Creative Assets */}
@@ -239,6 +255,9 @@ export const CampaignManager: React.FC = () => {
     const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
     const [sponsors, setSponsors] = useState<Sponsor[]>([]);
     const [editingCampaign, setEditingCampaign] = useState<AdCampaign | undefined>(undefined);
+    
+    // Modals
+    const [reviewCampaign, setReviewCampaign] = useState<AdCampaign | null>(null);
 
     useEffect(() => {
         loadData();
@@ -247,7 +266,7 @@ export const CampaignManager: React.FC = () => {
     const loadData = async () => {
         const c = await dbService.getAll<AdCampaign>('campaigns');
         const s = await dbService.getAll<Sponsor>('sponsors');
-        setCampaigns(c);
+        setCampaigns(c.sort((a,b) => b.updatedAt - a.updatedAt));
         setSponsors(s);
     };
 
@@ -262,6 +281,36 @@ export const CampaignManager: React.FC = () => {
         const newStatus = campaign.status === 'active' ? 'paused' : 'active';
         const updated = { ...campaign, status: newStatus, syncStatus: 'pending' as const };
         await dbService.put('campaigns', updated);
+        await loadData();
+    };
+
+    const handleInvoice = async (campaign: AdCampaign) => {
+        if (confirm(`Generate invoice for $${(campaign.priceCents/100).toFixed(2)}?`)) {
+            await billingService.createInvoice(campaign.sponsorId, campaign.id, campaign.priceCents, `Campaign: ${campaign.title}`);
+            const updated = { ...campaign, status: 'active' as const, syncStatus: 'pending' as const };
+            await dbService.put('campaigns', updated);
+            await loadData();
+            alert("Invoice generated & Campaign Activated!");
+        }
+    };
+
+    const handleReviewComplete = async (campaign: AdCampaign, approved: boolean, feedback?: string) => {
+        // Update Creatives
+        const updatedCreatives = campaign.creatives.map(c => ({
+            ...c,
+            approved: approved,
+            rejectionReason: approved ? undefined : feedback
+        }));
+
+        const updatedCampaign: AdCampaign = {
+            ...campaign,
+            creatives: updatedCreatives,
+            status: approved ? 'approved' : 'draft', // Send back to draft if rejected
+            syncStatus: 'pending'
+        };
+
+        await dbService.put('campaigns', updatedCampaign);
+        setReviewCampaign(null);
         await loadData();
     };
 
@@ -297,6 +346,8 @@ export const CampaignManager: React.FC = () => {
                     sponsors={sponsors} 
                     onEdit={(c) => { setEditingCampaign(c); setView('editor'); }}
                     onToggleStatus={handleToggleStatus}
+                    onReview={setReviewCampaign}
+                    onInvoice={handleInvoice}
                 />
             )}
 
@@ -322,6 +373,14 @@ export const CampaignManager: React.FC = () => {
                         Detailed reporting charts placeholder.
                     </div>
                 </div>
+            )}
+
+            {reviewCampaign && (
+                <CreativeReviewModal 
+                    campaign={reviewCampaign}
+                    onClose={() => setReviewCampaign(null)}
+                    onReview={handleReviewComplete}
+                />
             )}
         </div>
     );

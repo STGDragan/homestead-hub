@@ -4,7 +4,7 @@ import { Plant, PlantTemplate, UserProfile, Task } from '../../types';
 import { dbService } from '../../services/db';
 import { gardenAIService } from '../../services/gardenAI';
 import { Button } from '../ui/Button';
-import { X, Sprout, Calendar, Bell, Check, Info, Trash2 } from 'lucide-react';
+import { X, Sprout, Calendar, Bell, Check, Info, Trash2, Droplets } from 'lucide-react';
 
 interface PlantDetailModalProps {
     plant: Plant;
@@ -118,6 +118,25 @@ export const PlantDetailModal: React.FC<PlantDetailModalProps> = ({ plant, templ
                             <p className="text-sm text-earth-600 dark:text-stone-300 leading-relaxed">
                                 {template.description}
                             </p>
+                        </div>
+                    )}
+
+                    {/* Nutrition & Fertilizer */}
+                    {template.fertilizerType && (
+                        <div className="mb-4">
+                            <h3 className="font-bold text-earth-900 dark:text-earth-100 mb-1 flex items-center gap-2 text-sm">
+                                <Droplets size={16} className="text-blue-500" /> Nutrition
+                            </h3>
+                            <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30">
+                                <p className="text-sm text-blue-900 dark:text-blue-100 font-bold mb-1">
+                                    {template.fertilizerType}
+                                </p>
+                                <p className="text-xs text-blue-700 dark:text-blue-300">
+                                    {template.fertilizerFrequencyWeeks && template.fertilizerFrequencyWeeks > 0 
+                                        ? `Apply every ${template.fertilizerFrequencyWeeks} weeks during growing season.`
+                                        : "Apply once at planting or as needed."}
+                                </p>
+                            </div>
                         </div>
                     )}
 

@@ -1,5 +1,3 @@
-
-
 import React, { useEffect, useState } from 'react';
 import { dbService } from '../../services/db';
 import { GardenBed, Plant, UserProfile } from '../../types';
@@ -7,7 +5,7 @@ import { BedCard } from '../../components/garden/BedCard';
 import { PlantSuggestionsPanel } from '../../components/garden/PlantSuggestionsPanel';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Plus, Ruler, X, MapPin, Sprout, TreeDeciduous } from 'lucide-react';
+import { Plus, Ruler, X, MapPin, Sprout, TreeDeciduous, Map as MapIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { OrchardDashboard } from '../Orchard/OrchardDashboard';
 
@@ -20,6 +18,7 @@ export const GardenDashboard: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showLayoutSelect, setShowLayoutSelect] = useState(false);
   const [zone, setZone] = useState<string>('');
+  const [isCreatingForLayout, setIsCreatingForLayout] = useState(false); 
   const navigate = useNavigate();
 
   // Form State
@@ -59,14 +58,22 @@ export const GardenDashboard: React.FC = () => {
         syncStatus: 'pending'
     };
     await dbService.put('garden_beds', newBed);
-    setBeds([...beds, newBed]);
-    setShowAddModal(false);
-    setNewBedName('');
+    
+    // Workflow logic
+    if (isCreatingForLayout) {
+        navigate(`/garden/layout/${newBed.id}`);
+    } else {
+        setBeds([...beds, newBed]);
+        setShowAddModal(false);
+        setNewBedName('');
+        setIsCreatingForLayout(false);
+    }
   };
 
   const handleLayoutClick = () => {
       if (beds.length === 0) {
-          alert("Create a bed first!");
+          setIsCreatingForLayout(true);
+          setShowAddModal(true);
           return;
       }
       if (beds.length === 1) {
@@ -109,9 +116,9 @@ export const GardenDashboard: React.FC = () => {
 
       {activeTab === 'beds' && (
         <>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
                 <Button variant="outline" onClick={handleLayoutClick} icon={<Ruler size={18} />}>Layout Tool</Button>
-                <Button onClick={() => setShowAddModal(true)} icon={<Plus size={18} />}>New Bed</Button>
+                <Button onClick={() => { setIsCreatingForLayout(false); setShowAddModal(true); }} icon={<Plus size={18} />}>New Bed</Button>
             </div>
 
             {/* AI Recommendations Section */}
@@ -124,7 +131,7 @@ export const GardenDashboard: React.FC = () => {
                 
                 {/* Create New Bed Card Button */}
                 <button 
-                    onClick={() => setShowAddModal(true)}
+                    onClick={() => { setIsCreatingForLayout(false); setShowAddModal(true); }}
                     className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-earth-300 dark:border-stone-700 rounded-2xl bg-earth-50 dark:bg-stone-800 hover:bg-white dark:hover:bg-stone-700 hover:border-leaf-400 dark:hover:border-leaf-600 transition-all text-earth-500 dark:text-stone-400 hover:text-leaf-700 dark:hover:text-leaf-400 min-h-[200px]"
                 >
                     <div className="w-12 h-12 rounded-full bg-earth-200 dark:bg-stone-700 flex items-center justify-center mb-3">
@@ -137,7 +144,9 @@ export const GardenDashboard: React.FC = () => {
       )}
 
       {activeTab === 'orchard' && (
-          <OrchardDashboard embedded />
+          <>
+            <OrchardDashboard embedded />
+          </>
       )}
 
       {/* Add Bed Modal */}
@@ -145,9 +154,16 @@ export const GardenDashboard: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/80 p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-earth-200 dark:border-stone-800">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-serif font-bold text-earth-900 dark:text-earth-100">Add New Bed</h2>
+                    <h2 className="text-xl font-serif font-bold text-earth-900 dark:text-earth-100">
+                        {isCreatingForLayout ? "Create Bed to Design" : "Add New Bed"}
+                    </h2>
                     <button onClick={() => setShowAddModal(false)} className="text-earth-400 hover:text-earth-600 dark:hover:text-earth-200"><X size={24} /></button>
                 </div>
+                {isCreatingForLayout && (
+                    <div className="bg-leaf-50 dark:bg-leaf-900/20 text-leaf-800 dark:text-leaf-200 p-3 rounded-lg text-sm mb-4">
+                        Let's define your garden bed dimensions first, then we'll jump into the Layout Tool.
+                    </div>
+                )}
                 <form onSubmit={handleCreateBed} className="space-y-4">
                     <Input 
                         label="Bed Name"
@@ -173,7 +189,9 @@ export const GardenDashboard: React.FC = () => {
                     </div>
                     <div className="pt-2 flex gap-3">
                         <Button type="button" variant="ghost" onClick={() => setShowAddModal(false)} className="flex-1">Cancel</Button>
-                        <Button type="submit" className="flex-1">Create Bed</Button>
+                        <Button type="submit" className="flex-1">
+                            {isCreatingForLayout ? "Create & Open Tool" : "Create Bed"}
+                        </Button>
                     </div>
                 </form>
             </div>

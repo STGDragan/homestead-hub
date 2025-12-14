@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { dbService } from '../../services/db';
 import { GardenBed, Plant, GardenLog, GardenPhoto, PhotoAnnotation, UserProfile, PlantTemplate, HarvestLog, Task } from '../../types';
@@ -81,6 +81,25 @@ export const GardenBedDetail: React.FC = () => {
       }
     }
   };
+
+  // Group plants for list view
+  const groupedPlants = useMemo(() => {
+      const groups: Record<string, { representative: Plant; count: number }> = {};
+      
+      plants.forEach(p => {
+          // Group by Name + Variety to aggregate "like" plants
+          const key = `${p.name}::${p.variety}`;
+          if (!groups[key]) {
+              groups[key] = {
+                  representative: p,
+                  count: 0
+              };
+          }
+          groups[key].count += (p.quantity || 1);
+      });
+
+      return Object.values(groups).sort((a, b) => a.representative.name.localeCompare(b.representative.name));
+  }, [plants]);
 
   const handleAddPlant = async (templateId: string) => {
      const template = plantTemplates.find(p => p.id === templateId);
@@ -312,29 +331,37 @@ export const GardenBedDetail: React.FC = () => {
                     )}
 
                     <div className="space-y-3">
-                        {plants.length === 0 ? (
+                        {groupedPlants.length === 0 ? (
                              <div className="text-center p-12 bg-earth-50 dark:bg-night-800 rounded-xl border-2 border-dashed border-earth-200 dark:border-night-700 text-earth-500 dark:text-night-400">
                                 <Leaf className="mx-auto mb-2 opacity-50" size={32} />
                                 <p>No plants here yet.</p>
                              </div>
-                        ) : plants.map(plant => (
-                            <Card key={plant.id} className="flex items-center p-3 gap-3">
-                                <div className="w-10 h-10 rounded-full bg-leaf-100 dark:bg-leaf-900/20 flex items-center justify-center text-leaf-700 dark:text-leaf-400 font-serif font-bold text-lg shrink-0 overflow-hidden">
+                        ) : groupedPlants.map(({ representative, count }) => (
+                            <Card 
+                                key={representative.id} 
+                                className="flex items-center p-3 gap-3 cursor-pointer group hover:border-leaf-300 dark:hover:border-leaf-700 transition-colors"
+                                onClick={() => setSelectedPlant(representative)}
+                                interactive
+                            >
+                                <div className="w-10 h-10 rounded-full bg-leaf-100 dark:bg-leaf-900/20 flex items-center justify-center text-leaf-700 dark:text-leaf-400 font-serif font-bold text-lg shrink-0 overflow-hidden relative">
                                     {/* Try to find matching template image, else initial */}
-                                    {allTemplates.find(t => t.name === plant.name)?.imageUrl ? (
-                                        <img src={allTemplates.find(t => t.name === plant.name)?.imageUrl} alt="" className="w-full h-full object-cover" />
+                                    {allTemplates.find(t => t.name === representative.name)?.imageUrl ? (
+                                        <img src={allTemplates.find(t => t.name === representative.name)?.imageUrl} alt="" className="w-full h-full object-cover" />
                                     ) : (
-                                        plant.name[0]
+                                        representative.name[0]
                                     )}
+                                    <div className="absolute -bottom-1 -right-1 bg-leaf-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-white dark:border-night-900 shadow-sm">
+                                        x{count}
+                                    </div>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <h3 className="font-bold text-earth-800 dark:text-earth-100 truncate">{plant.name}</h3>
-                                    <p className="text-xs text-earth-500 dark:text-night-400 truncate">{plant.variety}</p>
-                                    <p className="text-[10px] text-earth-400 mt-0.5">Planted: {new Date(plant.plantedDate).toLocaleDateString()}</p>
+                                    <h3 className="font-bold text-earth-800 dark:text-earth-100 truncate group-hover:text-leaf-700 dark:group-hover:text-leaf-400 transition-colors">{representative.name}</h3>
+                                    <p className="text-xs text-earth-500 dark:text-night-400 truncate">{representative.variety}</p>
+                                    <p className="text-[10px] text-earth-400 mt-0.5">Planted: {new Date(representative.plantedDate).toLocaleDateString()}</p>
                                 </div>
                                 <div className="text-right">
                                     <span className="inline-block px-2 py-1 bg-leaf-50 dark:bg-leaf-900/20 text-leaf-800 dark:text-leaf-400 text-xs font-bold rounded capitalize">
-                                        {plant.status}
+                                        {representative.status}
                                     </span>
                                 </div>
                             </Card>

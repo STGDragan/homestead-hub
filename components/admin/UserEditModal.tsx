@@ -5,11 +5,11 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { subscriptionService } from '../../services/subscriptionService';
-import { X, Shield, CreditCard, User } from 'lucide-react';
+import { X, Shield, CreditCard, User, Phone } from 'lucide-react';
 
 interface UserEditModalProps {
   user: AuthUser & { profile?: UserProfile };
-  onSave: (updatedUser: Partial<AuthUser>, planId?: string) => void;
+  onSave: (updatedUser: Partial<AuthUser> & { name?: string, phone?: string }, planId?: string) => void;
   onClose: () => void;
 }
 
@@ -18,6 +18,10 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({ user, onSave, onCl
   const [status, setStatus] = useState<'active' | 'suspended'>(user.status);
   const [planId, setPlanId] = useState<string>('');
   const [availablePlans, setAvailablePlans] = useState<SubscriptionPlan[]>([]);
+  
+  // Profile fields (stored in user_profile)
+  const [name, setName] = useState(user.profile?.name || '');
+  const [phone, setPhone] = useState(''); // AuthUser doesn't carry phone in current type def, but profile might later
 
   useEffect(() => {
     const loadPlans = async () => {
@@ -37,7 +41,9 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({ user, onSave, onCl
     onSave({
         id: user.id,
         roles: [role],
-        status
+        status,
+        name,
+        phone
     }, planId);
   };
 
@@ -53,12 +59,18 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({ user, onSave, onCl
 
         <div className="mb-6 p-4 bg-earth-50 dark:bg-stone-800 rounded-xl border border-earth-100 dark:border-stone-700">
             <p className="text-sm font-bold text-earth-900 dark:text-earth-100">{user.email}</p>
-            <p className="text-xs text-earth-500">{user.profile?.name || 'No Profile'}</p>
             <p className="text-xs text-earth-400 mt-1">ID: {user.id}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
            
+           <Input 
+              label="Display Name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Full Name"
+           />
+
            <div className="grid grid-cols-2 gap-4">
                <Select 
                   label="System Role"
@@ -82,6 +94,14 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({ user, onSave, onCl
                   <option value="suspended">Suspended</option>
                </Select>
            </div>
+
+           <Input 
+              label="Phone Number"
+              icon={<Phone size={14}/>}
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              placeholder="+1..."
+           />
 
            <Select
               label="Subscription Plan"

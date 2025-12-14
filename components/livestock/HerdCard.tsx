@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { HerdGroup, AnimalTypeEntry } from '../../types';
+import { HerdGroup, AnimalTypeEntry, Animal } from '../../types';
 import { Card, CardTitle } from '../ui/Card';
 import { Bird, Milk, Mountain, Cloud, Rabbit, PiggyBank, Hexagon, HelpCircle, ChevronRight, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -19,13 +20,22 @@ const ICONS: Record<string, React.FC<any>> = {
 interface HerdCardProps {
   herd: HerdGroup;
   entries: AnimalTypeEntry[];
+  animals: Animal[];
 }
 
-export const HerdCard: React.FC<HerdCardProps> = ({ herd, entries }) => {
+export const HerdCard: React.FC<HerdCardProps> = ({ herd, entries, animals }) => {
   const navigate = useNavigate();
   const Icon = ICONS[herd.speciesType] || HelpCircle;
-  const totalCount = entries.reduce((acc, curr) => acc + curr.quantity, 0);
-  const distinctBreeds = entries.map(e => e.typeName).join(', ');
+  
+  const bulkCount = entries.reduce((acc, curr) => acc + curr.quantity, 0);
+  const individualCount = animals.length;
+  const totalCount = bulkCount + individualCount;
+
+  // Combine breed names from bulk entries and individual animals
+  const distinctBreeds = Array.from(new Set([
+    ...entries.map(e => e.typeName),
+    ...animals.map(a => a.breed)
+  ])).join(', ');
 
   return (
     <Card 
@@ -56,7 +66,7 @@ export const HerdCard: React.FC<HerdCardProps> = ({ herd, entries }) => {
               <span className="text-sm text-earth-500 mb-1">animals</span>
            </div>
            
-           {entries.length > 0 ? (
+           {totalCount > 0 ? (
              <div className="text-sm text-earth-600 truncate">
                 <span className="font-bold">Breeds: </span>
                 {distinctBreeds}

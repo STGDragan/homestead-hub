@@ -4,11 +4,12 @@ import { dbService } from '../../services/db';
 import { MarketplaceItem, MarketCategory, TradeOffer, UserProfile } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 import { ListingCard } from '../../components/marketplace/ListingCard';
 import { ListingEditorModal } from '../../components/marketplace/ListingEditorModal';
 import { TradeOfferModal } from '../../components/marketplace/TradeOfferModal';
 import { AdPlacement } from '../../components/monetization/AdPlacement';
-import { Store, Plus, Search, Inbox, Heart } from 'lucide-react';
+import { Store, Plus, Search, Inbox, Heart, MapPin } from 'lucide-react';
 import { MARKET_CATEGORIES } from '../../constants';
 
 export const MarketplaceDashboard: React.FC = () => {
@@ -17,13 +18,12 @@ export const MarketplaceDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'community' | 'mine' | 'saved' | 'offers'>('community');
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<MarketCategory | 'all'>('all');
+  const [distanceFilter, setDistanceFilter] = useState('50'); // Default 50 miles
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MarketplaceItem | null>(null);
-  
-  // Trade Logic
   const [tradeTarget, setTradeTarget] = useState<MarketplaceItem | null>(null);
 
   useEffect(() => {
@@ -31,25 +31,22 @@ export const MarketplaceDashboard: React.FC = () => {
   }, [activeTab]);
 
   const loadData = async () => {
-    // 1. Load User Profile for Saved Items
     const profile = await dbService.get<UserProfile>('user_profile', 'main_user');
     if (profile) {
         setUserProfile(profile);
         setSavedIds(new Set(profile.savedListingIds || []));
     }
 
-    // 2. Load Local Listings
     const localListings = await dbService.getAll<MarketplaceItem>('marketplace');
     const localOffers = await dbService.getAll<TradeOffer>('offers');
     
-    // 3. Mock Community Data (Demo)
+    // Mock Community Data
     const mockCommunityListings: MarketplaceItem[] = [
         { id: 'm1', title: 'Heritage Turkey Poults', description: '3 weeks old, Bourbon Reds.', type: 'sale', price: 15, category: 'livestock', location: 'Near Barnsville', images: [], status: 'active', ownerId: 'u2', createdAt: Date.now() - 86400000, updatedAt: Date.now(), syncStatus: 'synced' },
         { id: 'm2', title: 'Compost Sifter', description: 'Handmade hardware cloth sifter.', type: 'trade', tradeRequirements: 'Canning jars', category: 'equipment', location: 'Valley Rd', images: [], status: 'active', ownerId: 'u3', createdAt: Date.now() - 172800000, updatedAt: Date.now(), syncStatus: 'synced' },
         { id: 'm3', title: 'Extra Zucchini', description: 'Way too many. Please take them.', type: 'free', category: 'produce', location: 'Main St', images: [], status: 'active', ownerId: 'u4', createdAt: Date.now(), updatedAt: Date.now(), syncStatus: 'synced' },
     ];
 
-    // Merge keeping local updates priority if IDs conflict (not likely with UUIDs but safe practice)
     const combined = [...localListings];
     mockCommunityListings.forEach(mock => {
         if (!combined.find(c => c.id === mock.id)) combined.push(mock);
@@ -78,7 +75,6 @@ export const MarketplaceDashboard: React.FC = () => {
     };
     await dbService.put('marketplace', newItem);
     
-    // Switch to "My Listings" so user sees their new item immediately
     if (newItem.ownerId === 'me' && activeTab !== 'mine') {
         setActiveTab('mine');
     } else {
@@ -120,7 +116,7 @@ export const MarketplaceDashboard: React.FC = () => {
       const shareData = {
           title: item.title,
           text: `Check out ${item.title} on Homestead Hub!`,
-          url: window.location.href // In real app, deep link
+          url: window.location.href 
       };
       
       if (navigator.share) {
@@ -131,7 +127,6 @@ export const MarketplaceDashboard: React.FC = () => {
       }
   };
 
-  // Filter Logic
   const filteredItems = items.filter(item => {
       const isMyItem = item.ownerId === 'me';
       let tabMatch = true;
@@ -145,7 +140,6 @@ export const MarketplaceDashboard: React.FC = () => {
       return tabMatch && searchMatch && catMatch;
   });
 
-  // Render Offers Tab
   const renderOffers = () => (
      <div className="space-y-4">
         {offers.length === 0 ? (
@@ -182,7 +176,6 @@ export const MarketplaceDashboard: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
-      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-serif font-bold text-earth-900 dark:text-earth-100 flex items-center gap-2">
@@ -195,7 +188,6 @@ export const MarketplaceDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
       <div className="flex gap-4 border-b border-earth-200 dark:border-night-800 overflow-x-auto">
          <button 
            onClick={() => setActiveTab('community')}
@@ -235,6 +227,19 @@ export const MarketplaceDashboard: React.FC = () => {
                      onChange={e => setSearchTerm(e.target.value)}
                   />
                </div>
+               
+               <div className="flex items-center gap-2">
+                   <div className="w-32">
+                       <Select value={distanceFilter} onChange={e => setDistanceFilter(e.target.value)} className="h-full">
+                           <option value="5">5 miles</option>
+                           <option value="10">10 miles</option>
+                           <option value="25">25 miles</option>
+                           <option value="50">50 miles</option>
+                           <option value="100">100 miles</option>
+                       </Select>
+                   </div>
+               </div>
+
                <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
                   <button 
                      onClick={() => setCategoryFilter('all')}
@@ -254,9 +259,23 @@ export const MarketplaceDashboard: React.FC = () => {
                </div>
             </div>
 
+            {/* Map Placeholder */}
+            {activeTab === 'community' && (
+                <div className="h-48 w-full bg-earth-200 dark:bg-stone-800 rounded-xl overflow-hidden relative border border-earth-300 dark:border-stone-700">
+                    <div className="absolute inset-0 flex items-center justify-center flex-col text-earth-500 dark:text-stone-400 opacity-70">
+                        <MapPin size={32} className="mb-2" />
+                        <span className="font-bold text-sm">Listing Map View</span>
+                        <span className="text-xs">Showing items within {distanceFilter} miles</span>
+                    </div>
+                    {/* Mock Pins */}
+                    <div className="absolute top-1/4 left-1/4 p-1 bg-red-500 rounded-full animate-pulse"></div>
+                    <div className="absolute top-1/2 left-1/2 p-1 bg-red-500 rounded-full"></div>
+                    <div className="absolute bottom-1/3 right-1/3 p-1 bg-red-500 rounded-full"></div>
+                </div>
+            )}
+
             {/* Grid */}
             <div className="space-y-6">
-               {/* Use new AdPlacement here */}
                {activeTab === 'community' && (
                   <AdPlacement placementId="feed_inline" />
                )}

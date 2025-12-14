@@ -22,15 +22,18 @@ import {
   FileBarChart,
   Bell,
   MessageSquare,
-  BookOpen
+  BookOpen,
+  Megaphone,
+  LogOut,
+  AlertCircle
 } from 'lucide-react';
 import { NAV_ITEMS } from '../constants';
 import { dbService } from '../services/db';
 import { notificationService } from '../services/notificationService';
 import { authService } from '../services/auth';
-import { UserProfile, AuthUser } from '../types';
+import { UserProfile, AuthUser, Sponsor, AdCampaign } from '../types';
 import { NotificationCenter } from './messaging/NotificationCenter';
-import { SyncIndicator } from './sync/SyncIndicator'; // Import Sync Indicator
+import { SyncIndicator } from './sync/SyncIndicator'; 
 
 const icons: Record<string, React.FC<any>> = {
   LayoutDashboard,
@@ -62,6 +65,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   });
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingAdminCount, setPendingAdminCount] = useState(0);
+  
+  // Local state for logout confirmation to avoid sandboxed confirm() calls
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
+  
   const isMounted = useRef(true);
   
   const location = useLocation();
@@ -77,14 +85,21 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     const init = async () => {
         if (!isMounted.current) return;
         try {
-            const count = await notificationService.getUnreadCount('main_user');
-            if (isMounted.current) setUnreadCount(count);
-            
             const user = await authService.getCurrentUser();
-            // Check if admin or owner
+            const hasAdmin = authService.hasRole(user, 'admin');
+            
             if (isMounted.current) {
-                const hasAdmin = authService.hasRole(user, 'admin');
+                const count = await notificationService.getUnreadCount('main_user');
+                setUnreadCount(count);
                 setIsAdmin(hasAdmin);
+
+                if (hasAdmin) {
+                    const sponsors = await dbService.getAll<Sponsor>('sponsors');
+                    const campaigns = await dbService.getAll<AdCampaign>('campaigns');
+                    const pendingS = sponsors.filter(s => s.status === 'lead').length;
+                    const pendingC = campaigns.filter(c => c.status === 'reviewing').length;
+                    setPendingAdminCount(pendingS + pendingC);
+                }
             }
         } catch (e) {
             console.error("Layout init error", e);
@@ -123,6 +138,17 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const toggleTheme = () => setIsDark(!isDark);
 
+  const handleLogout = async () => {
+      if (logoutConfirm) {
+          await authService.logout();
+          setLogoutConfirm(false);
+      } else {
+          setLogoutConfirm(true);
+          // Reset confirmation state after 3 seconds if not clicked
+          setTimeout(() => setLogoutConfirm(false), 3000);
+      }
+  };
+
   // Add Message Nav Item dynamically if not exists (Prevents dupes in strict mode)
   if (!NAV_ITEMS.find(i => i.id === 'messages')) {
       NAV_ITEMS.splice(1, 0, { id: 'messages', label: 'Messages', icon: 'MessageSquare', path: '/messages' });
@@ -135,7 +161,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       <header className="md:hidden bg-white dark:bg-night-900 border-b border-earth-200 dark:border-night-800 p-4 sticky top-0 z-20 flex items-center justify-between shadow-sm">
         <Link to="/" className="font-serif font-bold text-xl text-earth-800 dark:text-earth-100">Homestead Hub</Link>
         <div className="flex items-center gap-2">
-            <SyncIndicator /> {/* Add Sync Indicator */}
+            <SyncIndicator /> 
             <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-earth-500 dark:text-earth-400 relative">
                 <Bell size={20} />
                 {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-night-900"></span>}
@@ -154,7 +180,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 <h1 className="font-serif font-black text-2xl text-leaf-800 dark:text-leaf-500 tracking-tight cursor-pointer">Homestead Hub</h1>
             </Link>
             <div className="flex items-center gap-2 mt-1">
-               <SyncIndicator /> {/* Add Sync Indicator */}
+               <SyncIndicator /> 
                <span className="text-earth-500 dark:text-night-400 text-sm font-medium">Sync Active</span>
             </div>
           </div>
@@ -184,7 +210,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           {isAdmin && (
              <NavLink
                 to="/admin"
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group mt-4 border border-transparent ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group mt-4 border border-transparent relative ${
                   location.pathname.startsWith('/admin')
                     ? 'bg-leaf-100 dark:bg-leaf-900/30 text-leaf-900 dark:text-leaf-300 font-bold shadow-sm' 
                     : 'text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 border-purple-100 dark:border-purple-900/30'
@@ -192,11 +218,21 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
              >
                 <Shield size={20} />
                 Admin Console
+                {pendingAdminCount > 0 && (
+                    <span className="absolute right-3 top-3 w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse shadow-sm"></span>
+                )}
              </NavLink>
           )}
         </nav>
 
-        <div className="mt-auto space-y-4">
+        <div className="mt-auto space-y-2 border-t border-earth-200 dark:border-night-800 pt-4">
+            <NavLink 
+                to="/partner"
+                className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-colors text-xs font-bold ${location.pathname === '/partner' ? 'bg-earth-200 dark:bg-night-800 text-earth-900 dark:text-earth-100' : 'text-earth-500 dark:text-night-500 hover:bg-earth-100 dark:hover:bg-night-800'}`}
+            >
+                <Megaphone size={14} /> Partner Portal
+            </NavLink>
+
             <button 
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-earth-600 dark:text-night-400 hover:bg-earth-100 dark:hover:bg-night-800 transition-colors relative"
@@ -212,6 +248,18 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             >
                 {isDark ? <Sun size={20} /> : <Moon size={20} />}
                 <span className="font-medium text-sm">{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+
+            <button 
+                onClick={handleLogout}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-bold ${
+                    logoutConfirm 
+                    ? 'bg-red-600 text-white hover:bg-red-700' 
+                    : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                }`}
+            >
+                {logoutConfirm ? <AlertCircle size={20} /> : <LogOut size={20} />}
+                <span className="text-sm">{logoutConfirm ? 'Confirm Logout?' : 'Log Out'}</span>
             </button>
         </div>
       </aside>

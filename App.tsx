@@ -1,12 +1,5 @@
 
-
-
 import React, { useEffect, useState } from 'react';
-import { authService } from './services/auth';
-
-useEffect(() => {
-  authService.getSession();
-}, []);
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -24,8 +17,6 @@ import { HerdDetail } from './pages/Livestock/HerdDetail';
 import { OffspringList } from './pages/Livestock/OffspringList';
 import { OffspringDetail } from './pages/Livestock/OffspringDetail';
 import { BreedingDashboard } from './pages/Livestock/BreedingDashboard';
-import { RecipeDashboard } from './pages/Recipes/RecipeDashboard';
-import { RecipeDetail } from './pages/Recipes/RecipeDetail';
 import { MarketplaceDashboard } from './pages/Marketplace/MarketplaceDashboard';
 import { SeedDashboard } from './pages/Journal/SeedDashboard';
 import { FinanceDashboard } from './pages/Finances/FinanceDashboard';
@@ -43,31 +34,26 @@ import { OrchardDashboard } from './pages/Orchard/OrchardDashboard';
 import { TreeDetail } from './pages/Orchard/TreeDetail';
 import { ApiaryDashboard } from './pages/Beekeeping/ApiaryDashboard';
 import { HiveDetail } from './pages/Beekeeping/HiveDetail';
-import { OnboardingWizard } from './components/onboarding/OnboardingWizard';
+import { PartnerPortal } from './pages/Partner/PartnerPortal';
 import { AuthModal } from './components/auth/AuthModal';
 import { RoleGuard } from './components/auth/RoleGuard';
-import { dbService } from './services/db';
 import { authService } from './services/auth';
 import { subscriptionService } from './services/subscriptionService';
 import { libraryService } from './services/libraryService';
-import { UserProfile } from './types';
 
 export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [authKey, setAuthKey] = useState(0); // Used to force re-render on auth change
+  const [authKey, setAuthKey] = useState(0); 
 
   const checkAuth = async () => {
+      setLoading(true);
       const user = await authService.getCurrentUser();
-      setIsAuthenticated(!!user);
       
-      // If not authenticated, check if we need onboarding (no profile implies fresh install)
-      if (!user) {
-          const profile = await dbService.get<UserProfile>('user_profile', 'main_user');
-          setShowOnboarding(!profile);
+      if (user) {
+          setIsAuthenticated(true);
       } else {
-          setShowOnboarding(false);
+          setIsAuthenticated(false);
       }
       setLoading(false);
   };
@@ -75,9 +61,9 @@ export const App: React.FC = () => {
   useEffect(() => {
     const initApp = async () => {
       try {
-        await subscriptionService.initializePlans(); // Seed Plans
-        await libraryService.initSystemPlants(); // Seed Library
-        await libraryService.initSystemAnimals(); // Seed Animals
+        await subscriptionService.initializePlans(); 
+        await libraryService.initSystemPlants(); 
+        await libraryService.initSystemAnimals(); 
         await checkAuth();
       } catch (e) {
         console.error("App init failed:", e);
@@ -89,14 +75,13 @@ export const App: React.FC = () => {
     const handleAuthChange = async () => {
         setAuthKey(prev => prev + 1);
         await checkAuth();
-        // Ensure user lands on dashboard after logout/login to reset view state
-        if (window.location.hash !== '#/') {
+        // Ensure we don't get stuck on a protected route if logged out
+        if (!authService.getSession() && window.location.hash !== '#/') {
              window.location.hash = '#/';
         }
     };
     window.addEventListener('auth-change', handleAuthChange);
     
-    // Add Storage Event Listener for cross-tab sync
     const handleStorageChange = (e: StorageEvent) => {
         if (e.key === 'auth_session') {
             handleAuthChange();
@@ -109,12 +94,6 @@ export const App: React.FC = () => {
         window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
-
-  const handleOnboardingComplete = () => {
-    window.location.hash = '/';
-    // Re-check auth logic (Onboarding now registers user)
-    checkAuth();
-  };
 
   const handleLoginSuccess = () => {
       checkAuth();
@@ -129,10 +108,6 @@ export const App: React.FC = () => {
         </div>
       </div>
     );
-  }
-
-  if (showOnboarding) {
-    return <OnboardingWizard onComplete={handleOnboardingComplete} />;
   }
 
   if (!isAuthenticated) {
@@ -177,8 +152,6 @@ export const App: React.FC = () => {
           <Route path="/animals/breeding" element={<BreedingDashboard />} />
           
           <Route path="/tasks" element={<TasksDashboard />} />
-          <Route path="/recipes" element={<RecipeDashboard />} />
-          <Route path="/recipes/:id" element={<RecipeDetail />} />
           <Route path="/marketplace" element={<MarketplaceDashboard />} />
           <Route path="/finances" element={<FinanceDashboard />} />
           <Route path="/health" element={<HealthDashboard />} />
@@ -189,7 +162,10 @@ export const App: React.FC = () => {
           <Route path="/reports" element={<ReportsDashboard />} />
           <Route path="/messages" element={<MessagingDashboard />} />
           
-          <Route path="/sync" element={<SyncDashboard />} /> 
+          <Route path="/sync" element={<SyncDashboard />} />
+          
+          {/* Public/Partner Route (Could be separated from main layout in real app) */}
+          <Route path="/partner" element={<PartnerPortal />} />
           
           <Route 
             path="/admin" 

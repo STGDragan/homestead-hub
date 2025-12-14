@@ -25,7 +25,12 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({ targetItem, on
        setMyItems(all.filter(i => i.ownerId === 'me' && i.status === 'active'));
     };
     loadInventory();
-  }, []);
+    
+    // Default to listing price if sale
+    if (targetItem.type === 'sale' && targetItem.price) {
+        setCashOffer(targetItem.price.toString());
+    }
+  }, [targetItem]);
 
   const toggleSelection = (id: string) => {
      if (selectedItems.includes(id)) {
@@ -70,6 +75,7 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({ targetItem, on
             <div>
                <p className="text-xs text-earth-500 dark:text-stone-400 uppercase font-bold">Trading For</p>
                <h3 className="font-bold text-earth-900 dark:text-earth-100">{targetItem.title}</h3>
+               {targetItem.price && <p className="text-xs text-green-600 font-bold">Listed: ${targetItem.price}</p>}
             </div>
          </div>
 
@@ -82,6 +88,7 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({ targetItem, on
                      placeholder="0.00" 
                      value={cashOffer} 
                      onChange={e => setCashOffer(e.target.value)} 
+                     className="bg-white dark:bg-stone-800"
                   />
                </div>
 
@@ -121,7 +128,7 @@ export const TradeOfferModal: React.FC<TradeOfferModalProps> = ({ targetItem, on
                   placeholder="I can meet at the feed store on Tuesday..."
                   value={message}
                   onChange={e => setMessage(e.target.value)}
-                  className="h-24"
+                  className="h-24 bg-white dark:bg-stone-800"
                />
                <div className="flex gap-2">
                   <Button variant="ghost" onClick={() => setStep('select')} className="flex-1">Back</Button>

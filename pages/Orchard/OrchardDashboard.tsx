@@ -1,24 +1,21 @@
-
-
 import React, { useEffect, useState } from 'react';
 import { orchardService } from '../../services/orchardService';
 import { OrchardTree, TreeStatus, RootstockType } from '../../types';
-import { OrchardMap } from '../../components/orchard/OrchardMap';
 import { TreeCard } from '../../components/orchard/TreeCard';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Card } from '../../components/ui/Card';
-import { Plus, TreeDeciduous, Map as MapIcon, List, Search, X, Upload, Image as ImageIcon } from 'lucide-react';
+import { Plus, TreeDeciduous, Search, X, Upload } from 'lucide-react';
 import { TREE_SPECIES, ROOTSTOCKS } from '../../constants';
 import { useNavigate } from 'react-router-dom';
 
 const AddTreeModal: React.FC<{ 
     onSave: (t: Partial<OrchardTree>) => void; 
     onClose: () => void;
-    initialCoords?: { x: number, y: number };
-}> = ({ onSave, onClose, initialCoords }) => {
+}> = ({ onSave, onClose }) => {
     const [species, setSpecies] = useState('apple');
+    const [customSpecies, setCustomSpecies] = useState('');
     const [variety, setVariety] = useState('');
     const [rootstock, setRootstock] = useState<RootstockType>('semi-dwarf');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -38,12 +35,12 @@ const AddTreeModal: React.FC<{
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSave({
-            species,
+            species: species === 'other' ? customSpecies : species,
             variety,
             rootstock,
             plantedDate: new Date(date).getTime(),
             status: 'planted',
-            location: initialCoords || { x: 50, y: 50 },
+            location: { x: 50, y: 50 }, // Default
             imageUrl: imagePreview
         });
     };
@@ -75,7 +72,20 @@ const AddTreeModal: React.FC<{
 
                     <Select label="Species" value={species} onChange={e => setSpecies(e.target.value)}>
                         {TREE_SPECIES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                        <option value="other">Other / Custom</option>
                     </Select>
+
+                    {species === 'other' && (
+                        <Input 
+                            label="Custom Species Name" 
+                            value={customSpecies} 
+                            onChange={e => setCustomSpecies(e.target.value)} 
+                            placeholder="e.g. Persimmon" 
+                            required 
+                            autoFocus
+                        />
+                    )}
+
                     <Input label="Variety" value={variety} onChange={e => setVariety(e.target.value)} placeholder="e.g. Honeycrisp" required />
                     <Select label="Rootstock" value={rootstock} onChange={e => setRootstock(e.target.value as any)}>
                         {ROOTSTOCKS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
@@ -91,12 +101,9 @@ const AddTreeModal: React.FC<{
 export const OrchardDashboard: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     const navigate = useNavigate();
     const [trees, setTrees] = useState<OrchardTree[]>([]);
-    const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
     const [searchTerm, setSearchTerm] = useState('');
     const [stats, setStats] = useState({ totalTrees: 0, yieldYTD: 0 });
     const [showAddModal, setShowAddModal] = useState(false);
-    const [mapAddMode, setMapAddMode] = useState(false);
-    const [pendingCoords, setPendingCoords] = useState<{x:number, y:number} | undefined>(undefined);
 
     useEffect(() => {
         loadData();
@@ -127,13 +134,6 @@ export const OrchardDashboard: React.FC<{ embedded?: boolean }> = ({ embedded = 
         await orchardService.addTree(tree);
         loadData();
         setShowAddModal(false);
-        setMapAddMode(false);
-        setPendingCoords(undefined);
-    };
-
-    const handleMapPlace = (x: number, y: number) => {
-        setPendingCoords({ x, y });
-        setShowAddModal(true);
     };
 
     const filteredTrees = trees.filter(t => 
@@ -149,28 +149,25 @@ export const OrchardDashboard: React.FC<{ embedded?: boolean }> = ({ embedded = 
                         <h1 className="text-3xl font-serif font-bold text-earth-900 dark:text-earth-100 flex items-center gap-2">
                             <TreeDeciduous className="text-leaf-700 dark:text-leaf-400" /> Orchard Manager
                         </h1>
-                        <p className="text-earth-600 dark:text-stone-400">Map your trees and track harvests.</p>
+                        <p className="text-earth-600 dark:text-stone-400">Track tree health, pruning logs, and yields.</p>
                     </div>
                 </div>
             )}
 
-            <div className="flex justify-between items-center">
-               <h2 className="font-bold text-lg text-earth-800 dark:text-earth-200">Trees & Layout</h2>
-               <div className="flex gap-2">
-                    <Button variant={viewMode === 'map' ? 'primary' : 'outline'} onClick={() => setViewMode('map')} icon={<MapIcon size={18}/>}>Map</Button>
-                    <Button variant={viewMode === 'list' ? 'primary' : 'outline'} onClick={() => setViewMode('list')} icon={<List size={18}/>}>List</Button>
-                    {viewMode === 'list' ? (
-                        <Button onClick={() => setShowAddModal(true)} icon={<Plus size={18}/>}>Add Tree</Button>
-                    ) : (
-                        <Button 
-                            onClick={() => setMapAddMode(!mapAddMode)} 
-                            variant={mapAddMode ? 'secondary' : 'primary'}
-                            className={mapAddMode ? 'ring-2 ring-leaf-500' : ''}
-                            icon={<Plus size={18}/>}
-                        >
-                            {mapAddMode ? 'Cancel Place' : 'Add Tree'}
-                        </Button>
-                    )}
+            <div className="flex flex-col md:flex-row gap-4">
+                {/* Search Bar */}
+                <div className="flex-1 relative">
+                    <Input 
+                        placeholder="Search varieties..." 
+                        icon={<Search size={18}/>}
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                    />
+                </div>
+
+                {/* Controls */}
+                <div className="flex gap-2">
+                    <Button onClick={() => setShowAddModal(true)} icon={<Plus size={18}/>}>Add Tree</Button>
                 </div>
             </div>
 
@@ -185,39 +182,23 @@ export const OrchardDashboard: React.FC<{ embedded?: boolean }> = ({ embedded = 
                 </Card>
             </div>
 
-            {viewMode === 'map' ? (
-                <div className="space-y-4">
-                    {mapAddMode && <p className="text-center text-sm font-bold text-leaf-600 animate-pulse">Click on the map to place your new tree.</p>}
-                    <OrchardMap 
-                        trees={trees} 
-                        onTreeClick={(t) => navigate(`/orchard/tree/${t.id}`)}
-                        onPlaceTree={mapAddMode ? handleMapPlace : undefined}
-                        mode={mapAddMode ? 'add' : 'view'}
-                    />
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    <div className="relative">
-                        <Input 
-                            placeholder="Search varieties..." 
-                            icon={<Search size={18}/>}
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                        />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredTrees.map(tree => (
+                    <TreeCard key={tree.id} tree={tree} onClick={() => navigate(`/orchard/tree/${tree.id}`)} />
+                ))}
+                {filteredTrees.length === 0 && (
+                    <div className="col-span-full text-center py-12 text-earth-400">
+                        <TreeDeciduous size={48} className="mx-auto mb-4 opacity-20" />
+                        <p>No trees found in your orchard.</p>
+                        <Button variant="ghost" onClick={() => setShowAddModal(true)} className="mt-2">Plant First Tree</Button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filteredTrees.map(tree => (
-                            <TreeCard key={tree.id} tree={tree} onClick={() => navigate(`/orchard/tree/${tree.id}`)} />
-                        ))}
-                    </div>
-                </div>
-            )}
+                )}
+            </div>
 
             {showAddModal && (
                 <AddTreeModal 
                     onSave={handleAddTree} 
-                    onClose={() => { setShowAddModal(false); setMapAddMode(false); }} 
-                    initialCoords={pendingCoords}
+                    onClose={() => setShowAddModal(false)}
                 />
             )}
         </div>

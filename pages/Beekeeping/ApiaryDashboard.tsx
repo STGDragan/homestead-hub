@@ -1,23 +1,19 @@
-
-
 import React, { useEffect, useState } from 'react';
 import { beekeepingService } from '../../services/beekeepingService';
 import { Hive, HiveType, BeeBreed } from '../../types';
-import { ApiaryMap } from '../../components/beekeeping/ApiaryMap';
 import { HiveCard } from '../../components/beekeeping/HiveCard';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Card } from '../../components/ui/Card';
-import { Plus, Hexagon, Map as MapIcon, List, Search, X, Droplets, Wind } from 'lucide-react';
+import { Plus, Hexagon, Wind, X } from 'lucide-react';
 import { HIVE_TYPES, BEE_BREEDS } from '../../constants';
 import { useNavigate } from 'react-router-dom';
 
 const AddHiveModal: React.FC<{ 
     onSave: (h: Partial<Hive>) => void; 
     onClose: () => void;
-    initialCoords?: { x: number, y: number };
-}> = ({ onSave, onClose, initialCoords }) => {
+}> = ({ onSave, onClose }) => {
     const [name, setName] = useState('');
     const [type, setType] = useState<HiveType>('langstroth');
     const [breed, setBreed] = useState<BeeBreed>('italian');
@@ -31,7 +27,7 @@ const AddHiveModal: React.FC<{
             queenBreed: breed,
             installedDate: new Date(date).getTime(),
             status: 'active',
-            location: initialCoords || { x: 50, y: 50 }
+            location: { x: 50, y: 50 } // Default
         });
     };
 
@@ -61,11 +57,8 @@ const AddHiveModal: React.FC<{
 export const ApiaryDashboard: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     const navigate = useNavigate();
     const [hives, setHives] = useState<Hive[]>([]);
-    const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
     const [stats, setStats] = useState({ totalHives: 0, honeyYTD: 0 });
     const [showAddModal, setShowAddModal] = useState(false);
-    const [mapAddMode, setMapAddMode] = useState(false);
-    const [pendingCoords, setPendingCoords] = useState<{x:number, y:number} | undefined>(undefined);
 
     useEffect(() => {
         loadData();
@@ -94,12 +87,6 @@ export const ApiaryDashboard: React.FC<{ embedded?: boolean }> = ({ embedded = f
         await beekeepingService.addHive(hive);
         loadData();
         setShowAddModal(false);
-        setMapAddMode(false);
-    };
-
-    const handleMapPlace = (x: number, y: number) => {
-        setPendingCoords({ x, y });
-        setShowAddModal(true);
     };
 
     return (
@@ -116,22 +103,9 @@ export const ApiaryDashboard: React.FC<{ embedded?: boolean }> = ({ embedded = f
             )}
 
             <div className="flex justify-between items-center">
-                <h2 className="font-bold text-lg text-earth-800 dark:text-earth-200">Colony Map</h2>
+                <h2 className="font-bold text-lg text-earth-800 dark:text-earth-200">Colony Overview</h2>
                 <div className="flex gap-2">
-                    <Button variant={viewMode === 'map' ? 'primary' : 'outline'} onClick={() => setViewMode('map')} icon={<MapIcon size={18}/>}>Map</Button>
-                    <Button variant={viewMode === 'list' ? 'primary' : 'outline'} onClick={() => setViewMode('list')} icon={<List size={18}/>}>List</Button>
-                    {viewMode === 'list' ? (
-                        <Button onClick={() => setShowAddModal(true)} icon={<Plus size={18}/>}>Add Hive</Button>
-                    ) : (
-                        <Button 
-                            onClick={() => setMapAddMode(!mapAddMode)} 
-                            variant={mapAddMode ? 'secondary' : 'primary'}
-                            className={mapAddMode ? 'ring-2 ring-amber-500' : ''}
-                            icon={<Plus size={18}/>}
-                        >
-                            {mapAddMode ? 'Cancel Place' : 'Add Hive'}
-                        </Button>
-                    )}
+                    <Button onClick={() => setShowAddModal(true)} icon={<Plus size={18}/>}>Add Hive</Button>
                 </div>
             </div>
 
@@ -150,33 +124,27 @@ export const ApiaryDashboard: React.FC<{ embedded?: boolean }> = ({ embedded = f
                         <span className="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase">Flight Conditions</span>
                     </div>
                     <p className="text-sm font-bold text-blue-900 dark:text-blue-100">Good Foraging</p>
-                    <p className="text-[10px] text-blue-700 dark:text-blue-300">Temp > 55°F, Low Wind</p>
+                    <p className="text--[10px] text-blue-700 dark:text-blue-300">Temp > 55°F, Low Wind</p>
                 </Card>
             </div>
 
-            {viewMode === 'map' ? (
-                <div className="space-y-4">
-                    {mapAddMode && <p className="text-center text-sm font-bold text-amber-600 animate-pulse">Click on the map to place your new hive.</p>}
-                    <ApiaryMap 
-                        hives={hives} 
-                        onHiveClick={(h) => navigate(`/apiary/hive/${h.id}`)}
-                        onPlaceHive={mapAddMode ? handleMapPlace : undefined}
-                        mode={mapAddMode ? 'add' : 'view'}
-                    />
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {hives.map(hive => (
-                        <HiveCard key={hive.id} hive={hive} onClick={() => navigate(`/apiary/hive/${hive.id}`)} />
-                    ))}
-                </div>
-            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {hives.map(hive => (
+                    <HiveCard key={hive.id} hive={hive} onClick={() => navigate(`/apiary/hive/${hive.id}`)} />
+                ))}
+                {hives.length === 0 && (
+                    <div className="col-span-full text-center py-12 text-earth-400">
+                        <Hexagon size={48} className="mx-auto mb-4 opacity-20" />
+                        <p>No hives in your apiary yet.</p>
+                        <Button variant="ghost" onClick={() => setShowAddModal(true)} className="mt-2">Add First Hive</Button>
+                    </div>
+                )}
+            </div>
 
             {showAddModal && (
                 <AddHiveModal 
                     onSave={handleAddHive} 
-                    onClose={() => { setShowAddModal(false); setMapAddMode(false); }} 
-                    initialCoords={pendingCoords}
+                    onClose={() => setShowAddModal(false)}
                 />
             )}
         </div>

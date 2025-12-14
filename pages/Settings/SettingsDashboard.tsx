@@ -10,7 +10,7 @@ import { SecuritySettings } from './SecuritySettings';
 import { DataManagementTab } from './DataManagementTab'; 
 import { AdvertisingTab } from './AdvertisingTab';
 import { AgentSettings } from '../../components/ai/AgentSettings';
-import { User, MapPin, Award, Target, Save, LogOut, CreditCard, Lock, Brain, Database, Mail, Loader2, Megaphone, Bell } from 'lucide-react';
+import { User, MapPin, Award, Target, Save, LogOut, CreditCard, Lock, Brain, Database, Mail, Loader2, Megaphone, Bell, Trash2, Phone, AlertCircle } from 'lucide-react';
 import { EXPERIENCE_LEVELS, HOMESTEAD_GOALS, OWNER_EMAIL } from '../../constants';
 import { authService } from '../../services/auth';
 import { notificationService } from '../../services/notificationService';
@@ -22,21 +22,26 @@ export const SettingsDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'security' | 'ai' | 'data' | 'advertising' | 'notifications'>('profile');
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreference | null>(null);
   
-  const [formData, setFormData] = useState<Partial<UserProfile>>({});
+  const [formData, setFormData] = useState<Partial<UserProfile> & { phone?: string }>({});
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  // Local state for immediate logout confirmation
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
   
   const location = useLocation();
 
   useEffect(() => {
     loadData();
-    // Handle deep linking to tabs from Admin Dashboard
+    // Handle deep linking to tabs from Admin Dashboard or Auth Modal
     if (location.state && (location.state as any).initialTab) {
         setActiveTab((location.state as any).initialTab);
     }
   }, [location]);
 
   const loadData = async () => {
+    setLoading(true);
     try {
         const user = await dbService.get<UserProfile>('user_profile', 'main_user');
         const auth = await authService.getCurrentUser();
@@ -66,6 +71,8 @@ export const SettingsDashboard: React.FC = () => {
 
     } catch(e) {
         console.error("Failed to load settings data", e);
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -74,10 +81,12 @@ export const SettingsDashboard: React.FC = () => {
     setIsSaving(true);
     
     try {
-        // Update Auth Email & Roles First
-        if (formData.email && formData.email !== profile.email) {
-            await authService.updateEmailAndRoles(formData.email);
-        }
+        // Sync profile changes to Supabase Auth Metadata (e.g. Phone, Display Name)
+        // This ensures the admin console has the latest info
+        await authService.syncProfileToAuth(formData.email, { 
+            name: formData.name, 
+            phone: formData.phone 
+        });
 
         const updated: UserProfile = {
            ...profile,
@@ -85,14 +94,18 @@ export const SettingsDashboard: React.FC = () => {
            updatedAt: Date.now(),
            syncStatus: 'pending' as const
         };
+        // Remove transient field 'phone' if we added it to formData for UI state only
+        delete (updated as any).phone; 
+
         await dbService.put('user_profile', updated);
         
         setProfile(updated);
         setIsEditing(false);
-        await loadData(); // Reload auth user state to reflect any role changes
+        await loadData(); 
     } catch (e) {
         console.error("Save failed", e);
-        alert("Failed to save settings.");
+        // Using non-blocking feedback could be better, but alert is usually safe in sandbox if 'allow-modals' is present.
+        // However, given the environment issue, console error is safer.
     } finally {
         setIsSaving(false);
     }
@@ -123,11 +136,51 @@ export const SettingsDashboard: React.FC = () => {
       setNotifPrefs(updated);
   };
 
-  const handleLogout = () => {
-      authService.logout();
+  const handleLogout = async () => {
+      if (logoutConfirm) {
+          await authService.logout();
+      } else {
+          setLogoutConfirm(true);
+          setTimeout(() => setLogoutConfirm(false), 3000);
+      }
   };
 
-  if (!profile) return <div className="p-8">Loading profile...</div>;
+  const handleForceLogout = async () => {
+      // Direct logout without confirmation for error recovery
+      await authService.logout();
+  };
+
+  const handleFactoryReset = async () => {
+      // Direct reset without window.confirm due to sandbox issues
+      // This is a drastic action, but if the user clicks it here, they likely need it.
+      // Ideally we would show a custom modal, but simple immediate action is requested.
+      localStorage.clear();
+      await dbService.clearDatabase();
+      window.location.reload();
+  };
+
+  if (loading) return <div className="p-8 text-center text-earth-500">Loading settings...</div>;
+
+  // Fallback for corrupt profile
+  if (!profile) return (
+      <div className="p-8 max-w-md mx-auto text-center space-y-6">
+          <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-2xl border border-red-200 dark:border-red-800">
+              <AlertCircle size={48} className="mx-auto text-red-500 mb-4" />
+              <h2 className="text-xl font-bold text-red-800 dark:text-red-200">Profile Load Error</h2>
+              <p className="text-red-600 dark:text-red-300 mt-2 text-sm">
+                  We couldn't load your user profile. This might happen if the initial setup didn't complete.
+              </p>
+          </div>
+          <div className="grid gap-3">
+              <Button onClick={handleForceLogout} className="w-full bg-earth-800" icon={<LogOut size={18}/>}>
+                  Log Out & Retry
+              </Button>
+              <Button onClick={handleFactoryReset} variant="outline" className="w-full text-red-600 border-red-200" icon={<Trash2 size={18}/>}>
+                  Factory Reset App
+              </Button>
+          </div>
+      </div>
+  );
 
   const isOwner = authService.hasRole(authUser, 'owner');
 
@@ -153,7 +206,7 @@ export const SettingsDashboard: React.FC = () => {
         )}
       </div>
 
-      <div className="flex gap-4 border-b border-earth-200 dark:border-night-800 overflow-x-auto pb-1">
+      <div className="flex gap-4 border-b border-earth-200 dark:border-night-800 overflow-x-auto pb-1 scrollbar-hide">
          <button 
             onClick={() => setActiveTab('profile')}
             className={`pb-3 px-2 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${activeTab === 'profile' ? 'border-leaf-600 text-leaf-800 dark:text-leaf-400' : 'border-transparent text-earth-500 dark:text-night-500 hover:text-earth-800 dark:hover:text-night-300'}`}
@@ -244,6 +297,24 @@ export const SettingsDashboard: React.FC = () => {
                                 <p className="text-earth-800 dark:text-earth-200 font-medium flex items-center gap-2">
                                     <Mail size={14}/> {profile.email || 'Not set'}
                                     {isOwner && <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-bold uppercase">Owner</span>}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Phone Field */}
+                        <div>
+                            <label className="block text-xs font-bold text-earth-500 dark:text-earth-400 uppercase mb-1">Phone Number</label>
+                            {isEditing ? (
+                                <Input 
+                                    type="tel"
+                                    icon={<Phone size={16} />}
+                                    value={formData.phone || ''}
+                                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                    placeholder="+15550000000"
+                                />
+                            ) : (
+                                <p className="text-earth-800 dark:text-earth-200 font-medium flex items-center gap-2">
+                                    <Phone size={14}/> {formData.phone || 'Not set'}
                                 </p>
                             )}
                         </div>
@@ -371,9 +442,14 @@ export const SettingsDashboard: React.FC = () => {
                 </Card>
             </div>
             
-            <div className="pt-8 border-t border-earth-200 dark:border-night-800">
-                <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-900/20" icon={<LogOut size={16} />} onClick={handleLogout}>
-                    Log Out
+            <div className="pt-8 border-t border-earth-200 dark:border-night-800 flex justify-end">
+                <Button 
+                    variant="outline" 
+                    className={`text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-900/20 ${logoutConfirm ? 'bg-red-600 text-white hover:bg-red-700 border-red-600' : ''}`} 
+                    icon={<LogOut size={16} />} 
+                    onClick={handleLogout}
+                >
+                    {logoutConfirm ? 'Confirm Logout?' : 'Log Out'}
                 </Button>
             </div>
         </>

@@ -1,8 +1,7 @@
-
 import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
-import './index.css'; // Assuming Tailwind is loaded via link tag but style block exists
+import './index.css'; 
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -27,21 +26,58 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     console.error("Uncaught error:", error, errorInfo);
   }
 
+  componentDidMount() {
+    // Catch async errors (promises) that React doesn't catch
+    window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    // Prevent default console error if we want to handle it custom
+    // event.preventDefault(); 
+    (this as any).setState({ 
+        hasError: true, 
+        error: event.reason instanceof Error ? event.reason : new Error(String(event.reason)) 
+    });
+  };
+
+  handleReset = () => {
+      if (confirm("This will clear your local configuration and cached data to fix the crash. Your database data is safe if synced. Continue?")) {
+          localStorage.clear();
+          window.location.reload();
+      }
+  };
+
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '2rem', fontFamily: 'sans-serif', color: '#5c412f', background: '#f5f0eb', minHeight: '100vh' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>Something went wrong.</h1>
-          <p style={{ marginBottom: '1rem' }}>The application encountered an error and could not render.</p>
-          <pre style={{ background: '#e8e0d5', padding: '1rem', borderRadius: '0.5rem', overflow: 'auto', fontSize: '0.875rem' }}>
-            {this.state.error?.toString()}
-          </pre>
-          <button 
-            onClick={() => window.location.reload()} 
-            style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: '#705036', color: 'white', border: 'none', borderRadius: '0.5rem', cursor: 'pointer' }}
-          >
-            Reload Application
-          </button>
+        <div style={{ padding: '2rem', fontFamily: 'sans-serif', color: '#5c412f', background: '#f5f0eb', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ maxWidth: '600px', background: 'white', padding: '2rem', borderRadius: '1rem', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#7f1d1d' }}>Something went wrong.</h1>
+              <p style={{ marginBottom: '1rem', lineHeight: '1.5' }}>The application encountered an unexpected error. This is often caused by invalid configuration settings or connection issues.</p>
+              
+              <pre style={{ background: '#f3f4f6', padding: '1rem', borderRadius: '0.5rem', overflow: 'auto', fontSize: '0.75rem', marginBottom: '1.5rem', border: '1px solid #e5e7eb', maxHeight: '200px' }}>
+                {this.state.error?.toString()}
+              </pre>
+              
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button 
+                    onClick={() => window.location.reload()} 
+                    style={{ padding: '0.75rem 1.5rem', background: '#705036', color: 'white', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    Try Reloading
+                  </button>
+                  <button 
+                    onClick={this.handleReset}
+                    style={{ padding: '0.75rem 1.5rem', background: 'transparent', color: '#dc2626', border: '2px solid #dc2626', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    Reset App Data
+                  </button>
+              </div>
+          </div>
         </div>
       );
     }

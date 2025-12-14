@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { PLANS, billingService } from '../../services/billingService';
+import { DEFAULT_PLANS as PLANS, billingService } from '../../services/billingService';
 import { Button } from '../ui/Button';
 import { Check, Star } from 'lucide-react';
 
@@ -47,7 +47,7 @@ export const PricingTable: React.FC<PricingTableProps> = ({ currentPlanId }) => 
                     variant={isCurrent ? 'outline' : isPro ? 'primary' : 'secondary'}
                     className="w-full"
                     disabled={isCurrent}
-                    onClick={() => billingService.startSubscription(plan.id)}
+                    onClick={() => billingService.subscribe('main_user', plan.id)}
                   >
                       {isCurrent ? 'Current Plan' : plan.priceCents === 0 ? 'Downgrade' : 'Subscribe'}
                   </Button>

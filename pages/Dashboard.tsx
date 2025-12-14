@@ -41,6 +41,7 @@ const WeatherWidget = () => (
 
 const TaskList: React.FC<{ refreshTrigger: number }> = ({ refreshTrigger }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -84,7 +85,7 @@ const TaskList: React.FC<{ refreshTrigger: number }> = ({ refreshTrigger }) => {
           )}
         </div>
       ))}
-      <Button variant="ghost" size="sm" className="w-full mt-2">View All Tasks</Button>
+      <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => navigate('/tasks')}>View All Tasks</Button>
     </div>
   );
 };

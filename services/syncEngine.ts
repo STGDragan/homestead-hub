@@ -1,15 +1,17 @@
 
 import { dbService } from './db';
-import { SyncQueueItem, ConflictLog, SyncStatusMeta } from '../types';
+import { SyncQueueItem, ConflictLog } from '../types';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 /**
  * SyncEngine
  * Handles offline queue processing, remote delta pulling, and conflict detection.
+ * Supports both Mock Mode (LocalStorage) and Real Cloud (Supabase).
  */
 export const syncEngine = {
 
     // --- Mock Remote Storage (Simulates Server) ---
-    getRemoteStorage(): Record<string, any[]> {
+    getMockRemoteStorage(): Record<string, any[]> {
         try {
             const stored = localStorage.getItem('mock_remote_db');
             return stored ? JSON.parse(stored) : {};
@@ -20,7 +22,7 @@ export const syncEngine = {
         }
     },
 
-    saveRemoteStorage(data: Record<string, any[]>) {
+    saveMockRemoteStorage(data: Record<string, any[]>) {
         try {
             localStorage.setItem('mock_remote_db', JSON.stringify(data));
         } catch (e) {
@@ -41,32 +43,50 @@ export const syncEngine = {
         let processed = 0;
         let errors = 0;
 
-        const remoteDB = this.getRemoteStorage();
+        // Load mock DB if needed
+        const mockDB = !isSupabaseConfigured ? this.getMockRemoteStorage() : null;
 
         for (const item of pending) {
             try {
-                // Simulate Remote Write
-                if (!remoteDB[item.storeName]) remoteDB[item.storeName] = [];
-                const collection = remoteDB[item.storeName];
+                if (isSupabaseConfigured) {
+                    // --- REAL SUPABASE SYNC ---
+                    // We use a generic 'app_data' table to store all collections
+                    
+                    const { error } = await supabase
+                        .from('app_data')
+                        .upsert({
+                            collection: item.storeName,
+                            id: item.recordId,
+                            data: item.payload,
+                            updated_at: Date.now(),
+                            deleted: item.operation === 'delete',
+                            // user_id is handled by RLS defaults usually, or auth context
+                        }, { onConflict: 'collection,id' });
 
-                if (item.operation === 'delete') {
-                    const idx = collection.findIndex((r: any) => r.id === item.recordId);
-                    if (idx !== -1) collection.splice(idx, 1);
+                    if (error) throw error;
+
                 } else {
-                    // Create or Update
-                    const idx = collection.findIndex((r: any) => r.id === item.recordId);
-                    if (idx !== -1) {
-                        // Conflict Check could happen here on real server
-                        collection[idx] = { ...item.payload, syncStatus: 'synced', updatedAt: Date.now() };
+                    // --- MOCK SYNC ---
+                    if (!mockDB) throw new Error("Mock DB init failed");
+                    
+                    if (!mockDB[item.storeName]) mockDB[item.storeName] = [];
+                    const collection = mockDB[item.storeName];
+
+                    if (item.operation === 'delete') {
+                        const idx = collection.findIndex((r: any) => r.id === item.recordId);
+                        if (idx !== -1) collection.splice(idx, 1);
                     } else {
-                        collection.push({ ...item.payload, syncStatus: 'synced', updatedAt: Date.now() });
+                        // Create or Update
+                        const idx = collection.findIndex((r: any) => r.id === item.recordId);
+                        if (idx !== -1) {
+                            collection[idx] = { ...item.payload, syncStatus: 'synced', updatedAt: Date.now() };
+                        } else {
+                            collection.push({ ...item.payload, syncStatus: 'synced', updatedAt: Date.now() });
+                        }
                     }
                 }
 
                 // Update Local Queue Status
-                item.status = 'processing'; // Transient state
-                // Note: In real app, we delete from queue only after confirmed success. 
-                // For this demo, we delete to keep queue clean.
                 await dbService.delete('sync_queue', item.id, 'sync'); 
                 
                 // Update Local Entity syncStatus to 'synced'
@@ -79,17 +99,18 @@ export const syncEngine = {
                 }
 
                 processed++;
-            } catch (e) {
-                console.error("Sync error", e);
+            } catch (e: any) {
+                console.error("Sync error", e.message);
                 item.status = 'failed';
                 item.retryCount++;
-                item.error = String(e);
+                item.error = String(e.message || e);
                 await dbService.put('sync_queue', item, 'sync');
                 errors++;
             }
         }
 
-        this.saveRemoteStorage(remoteDB);
+        if (mockDB) this.saveMockRemoteStorage(mockDB);
+        
         return { processed, errors };
     },
 
@@ -99,37 +120,92 @@ export const syncEngine = {
     async pullChanges(): Promise<{ pulled: number, conflicts: number }> {
         if (!navigator.onLine) return { pulled: 0, conflicts: 0 };
 
-        const remoteDB = this.getRemoteStorage();
         let pulled = 0;
         let conflicts = 0;
 
-        for (const storeName of Object.keys(remoteDB)) {
-            const remoteRecords = remoteDB[storeName];
-            
-            for (const remoteRecord of remoteRecords) {
-                const localRecord = await dbService.get<any>(storeName, remoteRecord.id);
+        try {
+            if (isSupabaseConfigured) {
+                // --- REAL SUPABASE PULL ---
+                const lastSync = parseInt(localStorage.getItem('homestead_last_pull') || '0');
+                
+                // Fetch all changed records since last sync
+                const { data, error } = await supabase
+                    .from('app_data')
+                    .select('*')
+                    .gt('updated_at', lastSync);
 
-                // 1. New Record
-                if (!localRecord) {
-                    await dbService.put(storeName, remoteRecord, 'sync');
-                    pulled++;
-                    continue;
+                if (error) {
+                    console.warn("Pull failed (Supabase Error):", error.message);
+                    return { pulled: 0, conflicts: 0 };
                 }
 
-                // 2. Existing Record - Check versions
-                if (remoteRecord.updatedAt > localRecord.updatedAt) {
-                    // Check if local has pending changes (Conflict)
-                    if (localRecord.syncStatus === 'pending') {
-                        // CONFLICT DETECTED
-                        await this.logConflict(storeName, localRecord, remoteRecord);
-                        conflicts++;
-                    } else {
-                        // Safe to overwrite (Remote is newer and local is clean)
-                        await dbService.put(storeName, remoteRecord, 'sync');
-                        pulled++;
+                if (data) {
+                    for (const row of data) {
+                        const storeName = row.collection;
+                        const remoteRecord = row.data;
+                        const isDeleted = row.deleted;
+
+                        // If deleted remotely
+                        if (isDeleted) {
+                            await dbService.delete(storeName, row.id, 'sync');
+                            pulled++;
+                            continue;
+                        }
+
+                        // Upsert local
+                        const localRecord = await dbService.get<any>(storeName, row.id);
+                        
+                        if (!localRecord) {
+                            await dbService.put(storeName, remoteRecord, 'sync');
+                            pulled++;
+                            continue;
+                        }
+
+                        // Conflict check
+                        if (remoteRecord.updatedAt > localRecord.updatedAt) {
+                            if (localRecord.syncStatus === 'pending') {
+                                await this.logConflict(storeName, localRecord, remoteRecord);
+                                conflicts++;
+                            } else {
+                                await dbService.put(storeName, remoteRecord, 'sync');
+                                pulled++;
+                            }
+                        }
+                    }
+                    
+                    // Update pointer
+                    localStorage.setItem('homestead_last_pull', Date.now().toString());
+                }
+
+            } else {
+                // --- MOCK PULL ---
+                const remoteDB = this.getMockRemoteStorage();
+                for (const storeName of Object.keys(remoteDB)) {
+                    const remoteRecords = remoteDB[storeName];
+                    for (const remoteRecord of remoteRecords) {
+                        const localRecord = await dbService.get<any>(storeName, remoteRecord.id);
+
+                        if (!localRecord) {
+                            await dbService.put(storeName, remoteRecord, 'sync');
+                            pulled++;
+                            continue;
+                        }
+
+                        if (remoteRecord.updatedAt > localRecord.updatedAt) {
+                            if (localRecord.syncStatus === 'pending') {
+                                await this.logConflict(storeName, localRecord, remoteRecord);
+                                conflicts++;
+                            } else {
+                                await dbService.put(storeName, remoteRecord, 'sync');
+                                pulled++;
+                            }
+                        }
                     }
                 }
             }
+        } catch (e: any) {
+            console.error("Pull Sync Exception:", e);
+            // Swallow error to prevent app crash
         }
         
         return { pulled, conflicts };
@@ -148,32 +224,33 @@ export const syncEngine = {
         await dbService.put('conflict_log', conflict, 'sync');
     },
 
-    /**
-     * Force a full sync cycle.
-     */
     async runSyncCycle() {
         console.log("Starting Sync Cycle...");
-        const pushResult = await this.pushChanges();
-        const pullResult = await this.pullChanges();
-        console.log("Sync Complete:", { pushResult, pullResult });
-        return { ...pushResult, ...pullResult };
+        try {
+            const pushResult = await this.pushChanges();
+            const pullResult = await this.pullChanges();
+            console.log("Sync Complete:", { pushResult, pullResult });
+            return { ...pushResult, ...pullResult };
+        } catch(e) {
+            console.error("Sync Cycle Failed:", e);
+            return { processed: 0, errors: 1, pulled: 0, conflicts: 0 };
+        }
     },
 
-    /**
-     * Helper to simulate a remote change for demo purposes.
-     */
     async simulateRemoteUpdate(storeName: string, recordId: string, newData: any) {
-        const remoteDB = this.getRemoteStorage();
-        if (!remoteDB[storeName]) remoteDB[storeName] = [];
-        
-        const idx = remoteDB[storeName].findIndex((r: any) => r.id === recordId);
-        const updated = { ...newData, id: recordId, updatedAt: Date.now() + 10000, syncStatus: 'synced' }; // Future timestamp to force update
-        
-        if (idx >= 0) remoteDB[storeName][idx] = updated;
-        else remoteDB[storeName].push(updated);
-        
-        this.saveRemoteStorage(remoteDB);
-        console.log("Simulated remote update for", recordId);
+        if (!isSupabaseConfigured) {
+            const remoteDB = this.getMockRemoteStorage();
+            if (!remoteDB[storeName]) remoteDB[storeName] = [];
+            
+            const idx = remoteDB[storeName].findIndex((r: any) => r.id === recordId);
+            const updated = { ...newData, id: recordId, updatedAt: Date.now() + 10000, syncStatus: 'synced' }; 
+            
+            if (idx >= 0) remoteDB[storeName][idx] = updated;
+            else remoteDB[storeName].push(updated);
+            
+            this.saveMockRemoteStorage(remoteDB);
+            console.log("Simulated mock remote update");
+        }
     },
 
     async getQueueStats(): Promise<{ pending: number, failed: number }> {
@@ -190,16 +267,14 @@ export const syncEngine = {
 
         if (resolution === 'remote_wins') {
             await dbService.put(conflict.storeName, conflict.remoteVersion, 'sync');
-            // Remove any pending queue items for this record to stop overwrite
             const queue = await dbService.getAllByIndex<SyncQueueItem>('sync_queue', 'status', 'pending');
             const item = queue.find(q => q.recordId === conflict.recordId);
             if (item) await dbService.delete('sync_queue', item.id, 'sync');
         } else {
-            // Local wins - effectively touch the local record to resync it later
             const local = await dbService.get<any>(conflict.storeName, conflict.recordId);
             if (local) {
                 local.updatedAt = Date.now();
-                await dbService.put(conflict.storeName, local); // Trigger queue add
+                await dbService.put(conflict.storeName, local);
             }
         }
 

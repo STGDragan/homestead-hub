@@ -1,9 +1,8 @@
 
-
 import { BaseEntity, SyncQueueItem } from '../types';
 
 const DB_NAME = "homestead_db";
-const DB_VERSION = 31; // Bumped for System Animal Library
+const DB_VERSION = 34; // Bumped for indices check
 
 class DBService {
   private dbPromise: Promise<IDBDatabase>;
@@ -51,102 +50,33 @@ class DBService {
             'orchard_trees', 'tree_logs', 'tree_yields',
             'hives', 'hive_inspections', 'hive_production',
             'help_articles', 'plant_discussions',
-            // Admin Managed Libraries
+            'yard_items', 'yard_settings',
             'system_plants', 'system_animals'
         ];
 
         stores.forEach(name => {
             if (!db.objectStoreNames.contains(name)) {
                 const store = db.createObjectStore(name, { keyPath: 'id' });
-                // Common indices
                 if (['plants', 'garden_logs', 'garden_photos', 'rotation_records', 'harvest_logs'].includes(name)) {
                     store.createIndex('bedId', 'bedId', { unique: false });
                 }
-                if (['animals', 'animal_entries', 'production_logs', 'feed_logs'].includes(name)) {
+                if (['animals', 'animal_entries', 'production_logs', 'feed_logs', 'medical_logs', 'loss_logs'].includes(name)) {
                     store.createIndex('herdId', 'herdId', { unique: false });
                     store.createIndex('herdGroupId', 'herdGroupId', { unique: false });
                 }
-                if (name === 'auth_users') {
-                    store.createIndex('email', 'email', { unique: true });
-                }
-                if (name === 'auth_devices') {
-                    store.createIndex('userId', 'userId', { unique: false });
-                }
-                if (name === 'mfa_devices') {
-                    store.createIndex('userId', 'userId', { unique: false });
-                }
-                if (name === 'security_audit_logs') {
-                    store.createIndex('userId', 'userId', { unique: false });
-                }
-                if (name === 'campaigns') {
-                    store.createIndex('status', 'status', { unique: false });
-                }
-                if (name === 'messages') {
-                    store.createIndex('threadId', 'threadId', { unique: false });
-                }
-                if (name === 'notifications') {
-                    store.createIndex('userId', 'userId', { unique: false });
-                    store.createIndex('read', 'read', { unique: false });
-                }
-                if (name === 'notification_preferences') {
-                    store.createIndex('userId', 'userId', { unique: true });
-                }
-                if (name === 'ai_recommendations') {
-                    store.createIndex('userId', 'userId', { unique: false });
-                    store.createIndex('isDismissed', 'isDismissed', { unique: false });
-                }
-                if (name === 'ai_feedback') {
-                    store.createIndex('recommendationId', 'recommendationId', { unique: false });
-                }
-                if (name === 'subscriptions') {
-                    store.createIndex('userId', 'userId', { unique: false });
-                }
-                if (name === 'trial_codes') {
-                    store.createIndex('code', 'code', { unique: true });
-                }
-                if (name === 'subscription_logs') {
-                    store.createIndex('userId', 'userId', { unique: false });
-                }
+                if (name === 'auth_users') store.createIndex('email', 'email', { unique: true });
+                if (name === 'notifications') store.createIndex('userId', 'userId', { unique: false });
                 if (name === 'sync_queue') {
                     store.createIndex('status', 'status', { unique: false });
                     store.createIndex('timestamp', 'timestamp', { unique: false });
                 }
-                if (name === 'conflict_log') {
-                    store.createIndex('resolved', 'resolved', { unique: false });
-                }
-                if (name === 'integration_logs') {
-                    store.createIndex('integrationId', 'integrationId', { unique: false });
-                }
-                if (name === 'sensor_devices') {
-                    store.createIndex('integrationId', 'integrationId', { unique: false });
-                }
-                if (name === 'sensor_readings') {
-                    store.createIndex('sensorId', 'sensorId', { unique: false });
-                }
-                if (name === 'tree_logs' || name === 'tree_yields') {
-                    store.createIndex('treeId', 'treeId', { unique: false });
-                }
-                if (name === 'hive_inspections' || name === 'hive_production') {
-                    store.createIndex('hiveId', 'hiveId', { unique: false });
-                }
-                if (name === 'help_articles') {
-                    store.createIndex('categoryId', 'categoryId', { unique: false });
-                }
-                if (name === 'plant_discussions') {
-                    store.createIndex('plantName', 'plantName', { unique: false });
-                }
             } else {
-                // Indices for existing stores can be checked here if needed
+                // Ensure indices exist for existing stores
                 const store = request.transaction!.objectStore(name);
-                if (name === 'sync_queue' && !store.indexNames.contains('status')) {
-                    store.createIndex('status', 'status', { unique: false });
-                    store.createIndex('timestamp', 'timestamp', { unique: false });
-                }
-                if (name === 'help_articles' && !store.indexNames.contains('categoryId')) {
-                    store.createIndex('categoryId', 'categoryId', { unique: false });
-                }
-                if (name === 'plant_discussions' && !store.indexNames.contains('plantName')) {
-                    store.createIndex('plantName', 'plantName', { unique: false });
+                if (['production_logs', 'feed_logs', 'medical_logs', 'loss_logs'].includes(name)) {
+                     if (!store.indexNames.contains('herdGroupId')) {
+                        store.createIndex('herdGroupId', 'herdGroupId', { unique: false });
+                     }
                 }
             }
         });
@@ -185,7 +115,6 @@ class DBService {
       if (!store.indexNames.contains(indexName)) {
           const request = store.getAll();
           request.onsuccess = () => {
-              // Fallback filter
               const res = request.result.filter((item: any) => item[indexName] === value);
               resolve(res);
           };
@@ -205,7 +134,6 @@ class DBService {
         const transaction = db.transaction(storeName, 'readonly');
         const store = transaction.objectStore(storeName);
         if (!store.indexNames.contains(indexName)) {
-            // simplified fallback
             const request = store.getAll();
             request.onsuccess = () => resolve(request.result.find((i:any) => i[indexName] === value));
             return;
@@ -217,10 +145,6 @@ class DBService {
     });
   }
 
-  /**
-   * Transactional PUT that also writes to the sync_queue.
-   * @param source If 'sync', skips writing to the queue (avoid loop).
-   */
   async put<T extends { id: string }>(storeName: string, item: T, source?: 'sync'): Promise<void> {
     const db = await this.dbPromise;
     return new Promise((resolve, reject) => {
@@ -229,18 +153,16 @@ class DBService {
 
       const transaction = db.transaction(stores, 'readwrite');
       
-      // 1. Write Record
       const mainStore = transaction.objectStore(storeName);
       mainStore.put(item);
 
-      // 2. Write Sync Log (if not from sync)
       if (source !== 'sync') {
           const queueStore = transaction.objectStore('sync_queue');
           const syncItem: SyncQueueItem = {
               id: crypto.randomUUID(),
               storeName,
               recordId: item.id,
-              operation: 'update', // Treat put as update/upsert
+              operation: 'update',
               payload: item,
               timestamp: Date.now(),
               status: 'pending',
@@ -272,7 +194,7 @@ class DBService {
               storeName,
               recordId: id,
               operation: 'delete',
-              payload: { id }, // Minimal payload for delete
+              payload: { id },
               timestamp: Date.now(),
               status: 'pending',
               retryCount: 0
@@ -283,6 +205,17 @@ class DBService {
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
     });
+  }
+
+  async clearDatabase(): Promise<void> {
+      const db = await this.dbPromise;
+      db.close();
+      return new Promise((resolve, reject) => {
+          const req = indexedDB.deleteDatabase(DB_NAME);
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error);
+          req.onblocked = () => console.warn("Delete blocked");
+      });
   }
 }
 

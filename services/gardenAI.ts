@@ -137,6 +137,8 @@ export const gardenAIService = {
         
         const varietyStr = template.defaultVariety ? `(${template.defaultVariety})` : '';
         const effectiveMethod = method === 'both' ? 'transplant' : method;
+        const depth = template.plantingDepth || 'standard depth';
+        const spacing = template.spacing;
 
         if (effectiveMethod === 'transplant') {
             // 1. Start Seeds (6 weeks before anchor date)
@@ -146,7 +148,7 @@ export const gardenAIService = {
             tasks.push({
                 id: crypto.randomUUID(),
                 title: `Start Seeds: ${template.name}`,
-                description: `Start ${template.name} ${varietyStr} seeds indoors for transplanting later.`,
+                description: `Start ${template.name} ${varietyStr} seeds indoors. Plant ${depth}. Maintain moisture and warmth.`,
                 season: this.getSeasonFromDate(seedDate),
                 category: 'garden',
                 dueDate: seedDate.getTime(),
@@ -166,7 +168,7 @@ export const gardenAIService = {
             tasks.push({
                 id: crypto.randomUUID(),
                 title: `Harden Off: ${template.name}`,
-                description: `Begin hardening off ${template.name} seedlings (move outdoors for increasing hours).`,
+                description: `Begin hardening off ${template.name} seedlings. Move outdoors for increasing hours over 7 days to acclimate to sun and wind.`,
                 season: this.getSeasonFromDate(hardenDate),
                 category: 'garden',
                 dueDate: hardenDate.getTime(),
@@ -183,7 +185,7 @@ export const gardenAIService = {
             tasks.push({
                 id: crypto.randomUUID(),
                 title: `Transplant: ${template.name}`,
-                description: `Transplant ${template.name} ${varietyStr} into the garden bed.`,
+                description: `Transplant ${template.name} ${varietyStr} into the garden. Space plants ${spacing} inches apart. Water deeply immediately after planting to settle roots.`,
                 season: this.getSeasonFromDate(anchorDate),
                 category: 'garden',
                 dueDate: anchorDate.getTime(),
@@ -201,7 +203,7 @@ export const gardenAIService = {
             tasks.push({
                 id: crypto.randomUUID(),
                 title: `Sow Seeds: ${template.name}`,
-                description: `Direct sow ${template.name} ${varietyStr} seeds in the garden.`,
+                description: `Direct sow ${template.name} ${varietyStr} in the garden. Plant seeds ${depth}. Thin to ${spacing} inches apart once seedlings are established.`,
                 season: this.getSeasonFromDate(anchorDate),
                 category: 'garden',
                 dueDate: anchorDate.getTime(),
@@ -215,6 +217,37 @@ export const gardenAIService = {
             });
         }
 
+        // FERTILIZER TASKS
+        if (template.fertilizerType && template.fertilizerFrequencyWeeks && template.fertilizerFrequencyWeeks > 0) {
+            const harvestDays = template.daysToMaturity;
+            const freqDays = template.fertilizerFrequencyWeeks * 7;
+            // Start 2 weeks after planting
+            let currentOffset = 14; 
+            
+            while (currentOffset < harvestDays) {
+                const fertDate = new Date(anchorDate);
+                fertDate.setDate(fertDate.getDate() + currentOffset);
+                
+                tasks.push({
+                    id: crypto.randomUUID(),
+                    title: `Fertilize: ${template.name}`,
+                    description: `Apply fertilizer: ${template.fertilizerType}. Ensure soil is moist before application to avoid root burn. (${currentOffset} days since planting)`,
+                    season: this.getSeasonFromDate(fertDate),
+                    category: 'garden',
+                    dueDate: fertDate.getTime(),
+                    completed: false,
+                    priority: 'medium',
+                    isRecurring: false,
+                    recurrencePattern: 'none',
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                    syncStatus: 'pending'
+                });
+                
+                currentOffset += freqDays;
+            }
+        }
+
         // Harvest Task
         const harvestDate = new Date(anchorDate);
         harvestDate.setDate(harvestDate.getDate() + template.daysToMaturity);
@@ -222,7 +255,7 @@ export const gardenAIService = {
         tasks.push({
             id: crypto.randomUUID(),
             title: `Harvest: ${template.name}`,
-            description: `Expected harvest window for ${template.name}. Check for ripeness.`,
+            description: `Expected harvest window for ${template.name}. Check for ripeness/maturity.`,
             season: this.getSeasonFromDate(harvestDate),
             category: 'garden',
             dueDate: harvestDate.getTime(),

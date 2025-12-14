@@ -1,4 +1,3 @@
-
 import { NavItem, PlantTemplate, SpeciesType, Season, TaskCategory, DiagnosisResult, ExpenseCategory, MarketCategory, ExperienceLevel, HomesteadGoal, SponsorBanner, DocPage, Medication, RecurrenceType, AnimalTemplate } from './types';
 
 // *** SECURITY CONFIG ***
@@ -8,18 +7,17 @@ export const OWNER_EMAIL = "travisddr@gmail.com";
 
 export const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', path: '/' },
-  { id: 'tasks', label: 'Tasks', icon: 'CheckSquare', path: '/tasks' },
   { id: 'garden', label: 'Garden', icon: 'Sprout', path: '/garden' },
   { id: 'animals', label: 'Livestock', icon: 'PawPrint', path: '/animals' },
+  { id: 'tasks', label: 'Tasks', icon: 'CheckSquare', path: '/tasks' },
   { id: 'marketplace', label: 'Marketplace', icon: 'Store', path: '/marketplace' },
-  { id: 'recipes', label: 'Kitchen', icon: 'Utensils', path: '/recipes' },
-  { id: 'finances', label: 'Finances', icon: 'DollarSign', path: '/finances' },
   { id: 'health', label: 'Health', icon: 'Stethoscope', path: '/health' },
+  { id: 'finances', label: 'Finances', icon: 'DollarSign', path: '/finances' },
   { id: 'weather', label: 'Weather', icon: 'CloudSun', path: '/weather' },
   { id: 'library', label: 'Library', icon: 'Book', path: '/library' },
   { id: 'reports', label: 'Reports', icon: 'FileBarChart', path: '/reports' },
-  { id: 'settings', label: 'Settings', icon: 'Settings', path: '/settings' },
   { id: 'help', label: 'Help', icon: 'HelpCircle', path: '/help' },
+  { id: 'settings', label: 'Settings', icon: 'Settings', path: '/settings' },
 ];
 
 export const INTEGRATION_SETUP_GUIDES: Record<string, { title: string, description: string, fields: string[] }> = {
@@ -55,8 +53,10 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     id: 'p1', name: 'Tomato', defaultVariety: 'Roma', daysToMaturity: 75, spacing: 18, icon: 'Circle',
     hardinessZones: [3, 4, 5, 6, 7, 8, 9, 10], difficulty: 'intermediate', companions: ['p10', 'p3'], season: ['summer'], height: 'tall',
     description: "A staple warm-season crop. Determinate varieties like Roma are bushier, while indeterminate varieties grow as vines.",
-    careInstructions: "Plant deep, burying the stem to encourage roots. Stake early. Water consistently to prevent blossom end rot. Feed with low-nitrogen fertilizer.",
+    careInstructions: "Plant deep, burying the stem to encourage roots. Stake early. Water consistently to prevent blossom end rot.",
     plantingMethod: 'transplant', weeksRelativeToFrost: 2,
+    plantingDepth: '1/4 inch (seeds) / Deep (transplant)',
+    fertilizerType: "Low Nitrogen (5-10-10) with Calcium", fertilizerFrequencyWeeks: 3,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -65,6 +65,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Cool-season leafy green. Grows quickly and is perfect for succession planting.",
     careInstructions: "Keep soil consistently moist. Harvest outer leaves for continuous yield or cut whole head. Needs shade in deep summer heat.",
     plantingMethod: 'direct', weeksRelativeToFrost: -4,
+    plantingDepth: '1/8 inch',
+    fertilizerType: "High Nitrogen (Fish Emulsion)", fertilizerFrequencyWeeks: 2,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -73,6 +75,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Sweet root vegetable rich in Vitamin A. Nantes varieties are cylindrical and sweet.",
     careInstructions: "Requires loose, sandy soil free of rocks to grow straight. Keep seed bed moist during germination (1-2 weeks). Thin seedlings to 3 inches.",
     plantingMethod: 'direct', weeksRelativeToFrost: -2,
+    plantingDepth: '1/4 inch',
+    fertilizerType: "Low Nitrogen (Potash & Phosphate)", fertilizerFrequencyWeeks: 4,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -81,6 +85,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Crunchy, sweet, or spicy fruits. Peppers love heat and sun.",
     careInstructions: "Transplant only after soil warms up. Magnesium (Epsom salts) can help growth. Stake if heavy with fruit.",
     plantingMethod: 'transplant', weeksRelativeToFrost: 3,
+    plantingDepth: '1/4 inch',
+    fertilizerType: "Balanced (10-10-10) plus Magnesium", fertilizerFrequencyWeeks: 3,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -89,6 +95,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Productive legume that fixes nitrogen in the soil. Bush varieties do not need trellising.",
     careInstructions: "Direct sow after frost. Do not disturb roots. Harvest frequently to encourage continued production.",
     plantingMethod: 'direct', weeksRelativeToFrost: 1,
+    plantingDepth: '1 inch',
+    fertilizerType: "None (Nitrogen Fixer) or Light Compost", fertilizerFrequencyWeeks: 0,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -97,6 +105,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Super fast growing root crop. Great for kids and impatient gardeners.",
     careInstructions: "Sow thinly. Harvest promptly when mature; they get woody if left too long. Spicy flavor increases with heat.",
     plantingMethod: 'direct', weeksRelativeToFrost: -4,
+    plantingDepth: '1/2 inch',
+    fertilizerType: "None (Avoid Nitrogen)", fertilizerFrequencyWeeks: 0,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -105,6 +115,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Nutrient-dense green that loves cold weather. Bloomsdale has crinkled, savory leaves.",
     careInstructions: "Plant very early spring or late fall. Bolting occurs as days lengthen; harvest young.",
     plantingMethod: 'direct', weeksRelativeToFrost: -6,
+    plantingDepth: '1/2 inch',
+    fertilizerType: "High Nitrogen (Fish Emulsion)", fertilizerFrequencyWeeks: 2,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -113,6 +125,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Prolific summer squash. One or two plants are usually enough for a family.",
     careInstructions: "Watch for squash bugs and powdery mildew. Water at the base. Harvest when 6-8 inches long for best flavor.",
     plantingMethod: 'direct', weeksRelativeToFrost: 2,
+    plantingDepth: '1 inch',
+    fertilizerType: "Balanced (10-10-10)", fertilizerFrequencyWeeks: 3,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -121,6 +135,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Hardy brassica also known as Dinosaur Kale. Sweetens after a frost.",
     careInstructions: "Very cold hardy. Watch for cabbage worms (white butterflies). Mulch to keep soil cool.",
     plantingMethod: 'transplant', weeksRelativeToFrost: -4,
+    plantingDepth: '1/4 inch',
+    fertilizerType: "High Nitrogen (Blood Meal)", fertilizerFrequencyWeeks: 3,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -129,6 +145,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Aromatic herb essential for pesto and tomato dishes.",
     careInstructions: "Pinch off flower heads to keep plant bushy and producing leaves. Hates cold; plant only when nights are warm.",
     plantingMethod: 'transplant', weeksRelativeToFrost: 2,
+    plantingDepth: '1/4 inch',
+    fertilizerType: "Balanced Liquid Feed", fertilizerFrequencyWeeks: 2,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -137,6 +155,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Day-length sensitive bulbs. Choose long-day for north, short-day for south.",
     careInstructions: "Keep weed-free; onions don't compete well. Stop watering when tops fall over to cure bulbs.",
     plantingMethod: 'transplant', weeksRelativeToFrost: -4,
+    plantingDepth: '1 inch (sets) / 1/4 inch (seeds)',
+    fertilizerType: "High Nitrogen (until bulbing starts)", fertilizerFrequencyWeeks: 3,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -145,6 +165,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Tall grass crop needing wind for pollination. Plant in blocks, not single rows.",
     careInstructions: "Heavy feeder; requires nitrogen-rich soil. Water deeply during tasseling/silking.",
     plantingMethod: 'direct', weeksRelativeToFrost: 1,
+    plantingDepth: '1-2 inches',
+    fertilizerType: "Very High Nitrogen (Heavy Feeder)", fertilizerFrequencyWeeks: 2,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -153,6 +175,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Starchy tuber. Yukon Gold is a versatile, buttery yellow variety.",
     careInstructions: "Plant seed potatoes in trenches. 'Hill' soil around stems as they grow to prevent green tubers. Harvest after vines die back.",
     plantingMethod: 'direct', weeksRelativeToFrost: -2,
+    plantingDepth: '4 inches',
+    fertilizerType: "Low Nitrogen, High Potassium", fertilizerFrequencyWeeks: 4,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   { 
@@ -161,6 +185,8 @@ export const COMMON_PLANTS: PlantTemplate[] = [
     description: "Perennial fruit. June bearers produce one large crop in early summer.",
     careInstructions: "Mulch with straw to keep berries clean. Remove runners to focus energy on fruit. Replace plants every 3-4 years.",
     plantingMethod: 'transplant', weeksRelativeToFrost: -4,
+    plantingDepth: 'Crown level with soil',
+    fertilizerType: "Balanced (10-10-10) in early Spring", fertilizerFrequencyWeeks: 0,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   }
 ];
@@ -235,6 +261,8 @@ export const BENEFICIAL_PLANTS: PlantTemplate[] = [
     description: "Bright flowers that deter nematodes and other pests.",
     careInstructions: "Deadhead spent blooms to encourage more flowers. Very hardy.",
     plantingMethod: 'direct', weeksRelativeToFrost: 1,
+    plantingDepth: '1/4 inch',
+    fertilizerType: "Low Nitrogen (promotes bloom)", fertilizerFrequencyWeeks: 0,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   {
@@ -243,6 +271,8 @@ export const BENEFICIAL_PLANTS: PlantTemplate[] = [
     description: "Edible flowers and leaves with a peppery taste. Acts as a trap crop for aphids.",
     careInstructions: "Thrives in poor soil. Do not over-fertilize or you'll get leaves but no flowers.",
     plantingMethod: 'direct', weeksRelativeToFrost: -1,
+    plantingDepth: '1/2 inch',
+    fertilizerType: "None (Poor soil preferred)", fertilizerFrequencyWeeks: 0,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   {
@@ -251,6 +281,8 @@ export const BENEFICIAL_PLANTS: PlantTemplate[] = [
     description: "Star-shaped blue flowers that attract bees like magnets. Edible.",
     careInstructions: "Self-seeds aggressively. Plant where you want it to stay forever.",
     plantingMethod: 'direct', weeksRelativeToFrost: -2,
+    plantingDepth: '1/4 inch',
+    fertilizerType: "Balanced", fertilizerFrequencyWeeks: 4,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   },
   {
@@ -259,6 +291,8 @@ export const BENEFICIAL_PLANTS: PlantTemplate[] = [
     description: "Fragrant perennial herb. Attracts pollinators and repels moths.",
     careInstructions: "Needs excellent drainage and full sun. Prune in spring to prevent woodiness.",
     plantingMethod: 'transplant', weeksRelativeToFrost: 2,
+    plantingDepth: 'Surface (needs light)',
+    fertilizerType: "Low Nitrogen, Alkaline soil", fertilizerFrequencyWeeks: 0,
     createdAt: 0, updatedAt: 0, syncStatus: 'synced'
   }
 ];
@@ -433,7 +467,7 @@ export const MOCK_DIAGNOSES = {
     { issueName: 'Healthy', probability: 95, severity: 'low', description: 'Animal appears healthy.', treatments: [] },
     { issueName: 'Bumblefoot', probability: 75, severity: 'high', description: 'Staph infection on foot pad.', treatments: [{ title: 'Soak & Wrap', description: 'Soak in epsom salts, apply antiseptic and wrap.', organic: true }] }
   ]
-} as any; // Cast to avoid strict type checking on mock data structure if DiagnosisResult differs slightly
+} as any; 
 
 export const ADMIN_DOCS_CONTENT: DocPage[] = [
   {
@@ -550,12 +584,6 @@ export const USER_HELP_CONTENT = [
         id: 'home-market',
         title: 'Home & Market',
         articles: [
-            { 
-                id: 'h9', 
-                title: 'Kitchen & Pantry', 
-                excerpt: 'Cooking what you grow.',
-                content: `Log your harvests into the **Pantry**. The **Kitchen AI** suggests recipes based on what you currently have in stock vs. what needs to be used up. You can create custom recipes or use the AI to import them.`
-            },
             {
                 id: 'h10',
                 title: 'Financial Analysis',
@@ -649,4 +677,27 @@ export const BEE_BREEDS = [
     { id: 'russian', label: 'Russian' },
     { id: 'buckfast', label: 'Buckfast' },
     { id: 'unknown', label: 'Unknown / Wild' },
+];
+
+// YARD MAP TYPES
+export type YardItemType = 'structure' | 'zone' | 'infrastructure' | 'decoration';
+
+export const YARD_ITEM_TYPES: { id: YardItemType, label: string }[] = [
+    { id: 'structure', label: 'Building' },
+    { id: 'zone', label: 'Zone' },
+    { id: 'infrastructure', label: 'Infrastructure' },
+    { id: 'decoration', label: 'Decoration' }
+];
+
+export const YARD_TEMPLATES = [
+    { name: 'House', type: 'structure', width: 40, height: 30, color: '#fca5a5' },
+    { name: 'Barn', type: 'structure', width: 30, height: 40, color: '#ef4444' },
+    { name: 'Coop', type: 'structure', width: 10, height: 8, color: '#f87171' },
+    { name: 'Shed', type: 'structure', width: 10, height: 10, color: '#b91c1c' },
+    { name: 'Orchard', type: 'zone', width: 50, height: 50, color: '#bef264' },
+    { name: 'Garden', type: 'zone', width: 20, height: 10, color: '#86efac' },
+    { name: 'Pasture', type: 'zone', width: 100, height: 100, color: '#fde047' },
+    { name: 'Pond', type: 'infrastructure', width: 30, height: 20, color: '#60a5fa' },
+    { name: 'Driveway', type: 'infrastructure', width: 12, height: 60, color: '#d1d5db' },
+    { name: 'Path', type: 'infrastructure', width: 4, height: 20, color: '#e5e7eb' },
 ];

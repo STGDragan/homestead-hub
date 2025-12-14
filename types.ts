@@ -1,4 +1,5 @@
 
+
 export interface BaseEntity {
   id: string;
   createdAt: number;
@@ -29,8 +30,8 @@ export interface UserProfile extends BaseEntity {
 
 export interface AuthUser extends BaseEntity {
   email: string;
-  passwordHash: string;
-  salt: string;
+  passwordHash?: string; // Optional for Supabase
+  salt?: string;         // Optional for Supabase
   emailVerified: boolean;
   mfaEnabled: boolean;
   status: 'active' | 'suspended';
@@ -153,6 +154,9 @@ export interface PlantTemplate extends BaseEntity {
   plantingMethod?: 'direct' | 'transplant' | 'both';
   weeksRelativeToFrost?: number;
   imageUrl?: string;
+  fertilizerType?: string;
+  fertilizerFrequencyWeeks?: number;
+  plantingDepth?: string; // New field for depth instructions
 }
 
 export interface GardenBed extends BaseEntity {
@@ -440,6 +444,17 @@ export interface Expense extends BaseEntity {
   receiptUrl?: string; // New: Image URL for receipt/invoice
 }
 
+export interface Invoice extends BaseEntity {
+    sponsorId: string;
+    campaignId: string;
+    amountCents: number;
+    currency: string;
+    status: 'issued' | 'paid' | 'void' | 'overdue';
+    dueDate: number;
+    paidAt?: number;
+    notes?: string;
+}
+
 // Kitchen
 export interface Recipe extends BaseEntity {
   title: string;
@@ -629,7 +644,7 @@ export interface AdCampaign extends BaseEntity {
 }
 
 export type CampaignType = 'banner' | 'sponsor_block' | 'product_tile' | 'seasonal_panel';
-export type AdStatus = 'draft' | 'active' | 'paused' | 'completed';
+export type AdStatus = 'draft' | 'reviewing' | 'approved' | 'active' | 'paused' | 'completed' | 'billing';
 
 export interface AdCreative {
     id: string;
@@ -638,6 +653,7 @@ export interface AdCreative {
     altText: string;
     format: string;
     approved: boolean;
+    rejectionReason?: string;
 }
 
 export interface AdEvent extends BaseEntity {
@@ -880,6 +896,22 @@ export interface TreeYield extends BaseEntity {
     unit: string;
     quality: 'excellent' | 'good' | 'fair' | 'poor';
     notes?: string;
+}
+
+// Yard Map
+export type YardItemType = 'structure' | 'zone' | 'infrastructure' | 'decoration';
+
+export interface YardItem extends BaseEntity {
+    type: YardItemType;
+    label: string; // e.g. "Main Barn"
+    subType: string; // e.g. "barn"
+    x: number; // grid x
+    y: number; // grid y
+    width: number; // grid width
+    height: number; // grid height
+    color: string;
+    rotation?: number; // 0, 90, 180, 270
+    entityId?: string; // Optional link to actual data entity (e.g. GardenBed.id)
 }
 
 // Apiary
