@@ -2,7 +2,7 @@
 import { BaseEntity, SyncQueueItem } from '../types';
 
 const DB_NAME = "homestead_db";
-const DB_VERSION = 34; // Bumped for indices check
+const DB_VERSION = 35; // Bumped to add system_config
 
 class DBService {
   private dbPromise: Promise<IDBDatabase>;
@@ -51,7 +51,8 @@ class DBService {
             'hives', 'hive_inspections', 'hive_production',
             'help_articles', 'plant_discussions',
             'yard_items', 'yard_settings',
-            'system_plants', 'system_animals'
+            'system_plants', 'system_animals',
+            'system_config' // New store for persistent app settings (keys/urls)
         ];
 
         stores.forEach(name => {
@@ -148,15 +149,16 @@ class DBService {
   async put<T extends { id: string }>(storeName: string, item: T, source?: 'sync'): Promise<void> {
     const db = await this.dbPromise;
     return new Promise((resolve, reject) => {
+      // Don't sync system_config changes to the queue
       const stores = [storeName];
-      if (source !== 'sync') stores.push('sync_queue');
+      if (source !== 'sync' && storeName !== 'system_config') stores.push('sync_queue');
 
       const transaction = db.transaction(stores, 'readwrite');
       
       const mainStore = transaction.objectStore(storeName);
       mainStore.put(item);
 
-      if (source !== 'sync') {
+      if (source !== 'sync' && storeName !== 'system_config') {
           const queueStore = transaction.objectStore('sync_queue');
           const syncItem: SyncQueueItem = {
               id: crypto.randomUUID(),
@@ -180,14 +182,14 @@ class DBService {
     const db = await this.dbPromise;
     return new Promise((resolve, reject) => {
       const stores = [storeName];
-      if (source !== 'sync') stores.push('sync_queue');
+      if (source !== 'sync' && storeName !== 'system_config') stores.push('sync_queue');
 
       const transaction = db.transaction(stores, 'readwrite');
       
       const mainStore = transaction.objectStore(storeName);
       mainStore.delete(id);
 
-      if (source !== 'sync') {
+      if (source !== 'sync' && storeName !== 'system_config') {
           const queueStore = transaction.objectStore('sync_queue');
           const syncItem: SyncQueueItem = {
               id: crypto.randomUUID(),
@@ -209,13 +211,39 @@ class DBService {
 
   async clearDatabase(): Promise<void> {
       const db = await this.dbPromise;
+      
+      // We want to clear everything EXCEPT system_config if possible
+      // But standard clear deletes DB. 
+      // Strategy: Read config -> Delete DB -> Re-init -> Write config
+      
+      let savedConfig = null;
+      try {
+          const tx = db.transaction('system_config', 'readonly');
+          const store = tx.objectStore('system_config');
+          const req = store.get('supabase_config');
+          await new Promise(r => { 
+              req.onsuccess = () => { savedConfig = req.result; r(true); };
+              req.onerror = () => r(false);
+          });
+      } catch(e) { /* ignore if store missing */ }
+
       db.close();
-      return new Promise((resolve, reject) => {
+      
+      await new Promise((resolve, reject) => {
           const req = indexedDB.deleteDatabase(DB_NAME);
-          req.onsuccess = () => resolve();
+          req.onsuccess = () => resolve(true);
           req.onerror = () => reject(req.error);
           req.onblocked = () => console.warn("Delete blocked");
       });
+
+      // Re-open (triggering upgrade/create) and restore config
+      if (savedConfig) {
+          // Allow time for DB delete to finalize
+          setTimeout(async () => {
+             const newDbService = new DBService();
+             await newDbService.put('system_config', savedConfig);
+          }, 1000);
+      }
   }
 }
 

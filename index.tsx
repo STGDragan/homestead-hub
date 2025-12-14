@@ -1,3 +1,4 @@
+
 import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
@@ -45,8 +46,19 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   };
 
   handleReset = () => {
-      if (confirm("This will clear your local configuration and cached data to fix the crash. Your database data is safe if synced. Continue?")) {
+      if (confirm("This will clear your local cached data to fix the crash. Your connection settings will be preserved. Continue?")) {
+          // Preserve config to avoid re-entry annoyance
+          const url = localStorage.getItem('homestead_supabase_url');
+          const key = localStorage.getItem('homestead_supabase_key');
+          const offline = localStorage.getItem('homestead_force_offline');
+          
           localStorage.clear();
+          
+          // Restore config
+          if (url) localStorage.setItem('homestead_supabase_url', url);
+          if (key) localStorage.setItem('homestead_supabase_key', key);
+          if (offline) localStorage.setItem('homestead_force_offline', offline);
+          
           window.location.reload();
       }
   };

@@ -50,8 +50,35 @@ export const syncEngine = {
             try {
                 if (isSupabaseConfigured) {
                     // --- REAL SUPABASE SYNC ---
-                    // We use a generic 'app_data' table to store all collections
                     
+                    // Special Handling for 'user_profile'
+                    // Ensure core profile fields are synced to the dedicated table for relational integrity
+                    if (item.storeName === 'user_profile' && item.operation !== 'delete') {
+                        const { id, email, role, name } = item.payload;
+                        
+                        // VALIDATION: Only attempt SQL write if ID is a valid UUID
+                        // Postgres will throw 400 Bad Request if we try to insert 'main_user' into a UUID column
+                        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+
+                        if (isUUID) {
+                            try {
+                                const { error } = await supabase.from('user_profile').upsert({
+                                    id, 
+                                    email, 
+                                    role: role || 'user', 
+                                    name,
+                                    updated_at: new Date().toISOString()
+                                });
+                                if (error) {
+                                    console.warn("Supabase user_profile sync warning:", error.message);
+                                }
+                            } catch (profileError) {
+                                console.warn("Failed to sync to dedicated user_profile table (non-fatal):", profileError);
+                            }
+                        }
+                    }
+
+                    // Standard Sync: We use a generic 'app_data' table to store all collections as JSONB
                     const { error } = await supabase
                         .from('app_data')
                         .upsert({
@@ -135,7 +162,10 @@ export const syncEngine = {
                     .gt('updated_at', lastSync);
 
                 if (error) {
-                    console.warn("Pull failed (Supabase Error):", error.message);
+                    // Suppress harmless errors on fresh dbs
+                    if (!error.message.includes('relation "public.app_data" does not exist')) {
+                        console.warn("Pull failed (Supabase Error):", error.message);
+                    }
                     return { pulled: 0, conflicts: 0 };
                 }
 

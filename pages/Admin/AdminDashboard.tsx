@@ -4,9 +4,8 @@ import { dbService } from '../../services/db';
 import { AdminStat, FlaggedItem, AuthUser, Sponsor, AdCampaign } from '../../types';
 import { authService } from '../../services/auth';
 import { Card } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { Shield, Activity, DollarSign, BookOpen, Search, Check, AlertTriangle, X, Database, CreditCard, Users as UsersIcon, Megaphone, Briefcase, Leaf, Link, Cloud, Save, Trash2, Copy, Terminal, RefreshCw, CloudOff } from 'lucide-react';
+import { Shield, BookOpen, Search, Check, AlertTriangle, X, Database, Users as UsersIcon, Megaphone, Briefcase, Leaf, Link, Cloud, Copy, Terminal, CloudOff, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { SponsorManager } from '../../components/monetization/SponsorManager';
 import { CampaignManager } from './CampaignManager';
@@ -15,7 +14,6 @@ import { SubscriptionAdmin } from './SubscriptionAdmin';
 import { LibraryAdmin } from './LibraryAdmin';
 import { IntegrationManager } from '../../components/admin/IntegrationManager';
 import { isSupabaseConfigured } from '../../services/supabaseClient';
-import { createClient } from '@supabase/supabase-js'; // Import locally for validation
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -29,24 +27,16 @@ export const AdminDashboard: React.FC = () => {
   const [pendingSponsors, setPendingSponsors] = useState(0);
   const [pendingCampaigns, setPendingCampaigns] = useState(0);
 
-  // Cloud Config State
-  const [cloudUrl, setCloudUrl] = useState(localStorage.getItem('homestead_supabase_url') || '');
-  const [cloudKey, setCloudKey] = useState(localStorage.getItem('homestead_supabase_key') || '');
-  const [confirmClear, setConfirmClear] = useState(false);
   const [showSql, setShowSql] = useState(true); 
   const [isForcedOffline, setIsForcedOffline] = useState(localStorage.getItem('homestead_force_offline') === 'true');
 
   const SQL_SCRIPT = `
 /* 
-  FIX: "Database error saving new user" (AGGRESSIVE FIX)
-  This script uses a DO block to find and drop ALL triggers on auth.users 
-  that might be causing registration to fail.
-  
+  FIX: "Database error saving new user" (AGGRESSIVE FIX + SCHEMA UPDATE)
   Run this in the Supabase SQL Editor.
 */
 
--- 1. NUKE ALL TRIGGERS ON AUTH.USERS
--- This dynamic block finds any trigger on auth.users and drops it.
+-- 1. NUKE ALL TRIGGERS ON AUTH.USERS (Cleanup old logic)
 DO $$
 DECLARE
     trg text;
@@ -64,12 +54,11 @@ BEGIN
 END $$;
 
 -- 2. CLEANUP LIKELY FUNCTIONS
--- We drop these just in case they are referenced elsewhere or re-added
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 DROP FUNCTION IF EXISTS public.handle_new_user_custom() CASCADE;
 DROP FUNCTION IF EXISTS public.create_profile_for_user() CASCADE;
 
--- 3. ENSURE PROFILE TABLE EXISTS
+-- 3. ENSURE PROFILE TABLE EXISTS AND HAS ALL COLUMNS
 CREATE TABLE IF NOT EXISTS public.user_profile (
   id uuid REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   email text,
@@ -79,16 +68,21 @@ CREATE TABLE IF NOT EXISTS public.user_profile (
   updated_at timestamptz DEFAULT now()
 );
 
+-- ADD MISSING COLUMNS IF THEY DON'T EXIST (Idempotent)
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS phone text;
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS zip_code text;
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS role text DEFAULT 'user';
+
 -- 4. ENABLE ROW LEVEL SECURITY
 ALTER TABLE public.user_profile ENABLE ROW LEVEL SECURITY;
 
--- 5. CREATE PERMISSIVE POLICIES (Client-Side Creation)
--- Drop old policies first to avoid "policy already exists" errors
+-- 5. CREATE PERMISSIVE POLICIES
 DROP POLICY IF EXISTS "Users manage own profile" ON public.user_profile;
 DROP POLICY IF EXISTS "Read all profiles" ON public.user_profile;
 DROP POLICY IF EXISTS "Insert own profile" ON public.user_profile;
 
--- Allow users to INSERT their own profile during registration
+-- Allow users to INSERT their own profile
 CREATE POLICY "Insert own profile" 
 ON public.user_profile 
 FOR INSERT 
@@ -152,57 +146,6 @@ WITH CHECK (auth.uid() = user_id);
 
   const handleResolveFlag = (id: string, action: 'dismiss' | 'ban') => {
      setFlags(flags.filter(f => f.id !== id));
-  };
-
-  const handleSaveCloud = () => {
-      // Pre-flight check: Try to create a client with these credentials BEFORE saving
-      // This prevents saving a poison pill that crashes the app on reload
-      try {
-          const trimmedUrl = cloudUrl.trim();
-          const trimmedKey = cloudKey.trim();
-
-          if (!trimmedUrl.startsWith('http')) {
-              alert("URL must start with http:// or https://");
-              return;
-          }
-          if (trimmedKey.length < 20) {
-              alert("API Key seems too short.");
-              return;
-          }
-
-          // Attempt initialization
-          createClient(trimmedUrl, trimmedKey);
-          
-          // If successful (didn't throw), verify storage works
-          try {
-              localStorage.setItem('homestead_supabase_url', trimmedUrl);
-              localStorage.setItem('homestead_supabase_key', trimmedKey);
-              localStorage.removeItem('homestead_force_offline');
-          } catch (storageErr) {
-              alert("Failed to write to LocalStorage. Check your browser settings.");
-              return;
-          }
-
-          alert("Settings valid and saved. Reloading to connect...");
-          window.location.reload();
-
-      } catch (e: any) {
-          console.error("Config Validation Failed", e);
-          alert(`Invalid Configuration: ${e.message}\nPlease check your URL and Key.`);
-      }
-  };
-
-  const handleClearCloud = () => {
-      if (confirmClear) {
-          localStorage.removeItem('homestead_supabase_url');
-          localStorage.removeItem('homestead_supabase_key');
-          setCloudUrl('');
-          setCloudKey('');
-          setConfirmClear(false);
-      } else {
-          setConfirmClear(true);
-          setTimeout(() => setConfirmClear(false), 3000);
-      }
   };
 
   const handleReconnect = () => {
@@ -287,10 +230,10 @@ WITH CHECK (auth.uid() = user_id);
                <Card>
                   <div className="flex justify-between items-center mb-4">
                      <h3 className="font-bold text-earth-900 dark:text-earth-100 flex items-center gap-2"><Cloud size={18}/> App Config</h3>
-                     <Button size="sm" onClick={() => setActiveTab('cloud')}>Settings</Button>
+                     <Button size="sm" onClick={() => setActiveTab('cloud')}>Status</Button>
                   </div>
                   <p className="text-sm text-earth-600 dark:text-stone-300 mb-4">
-                     Configure Supabase connection and other app-level secrets.
+                     Configuration is hardcoded for production reliability.
                   </p>
                   <div className="flex items-center gap-2">
                      {isSupabaseConfigured ? (
@@ -298,21 +241,6 @@ WITH CHECK (auth.uid() = user_id);
                      ) : (
                         <span className="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded flex items-center gap-1"><AlertTriangle size={12}/> Mock Mode</span>
                      )}
-                  </div>
-               </Card>
-
-               <Card>
-                  <h3 className="font-bold text-earth-900 dark:text-earth-100 mb-4 flex items-center gap-2"><DollarSign size={18}/> Revenue Pipeline</h3>
-                  <div className="space-y-4">
-                     <div>
-                        <div className="flex justify-between text-xs font-bold text-earth-600 dark:text-stone-400 mb-1">
-                           <span>Monthly Goal ($5k)</span>
-                           <span>84%</span>
-                        </div>
-                        <div className="w-full h-2 bg-earth-100 dark:bg-stone-800 rounded-full overflow-hidden">
-                           <div className="h-full bg-leaf-600 w-[84%]" />
-                        </div>
-                     </div>
                   </div>
                </Card>
             </div>
@@ -329,7 +257,7 @@ WITH CHECK (auth.uid() = user_id);
                         <Cloud className="text-blue-500" /> Cloud Connection
                     </h2>
                     <p className="text-earth-600 dark:text-stone-300 text-sm mt-1">
-                        Connect your Supabase project to sync data across devices.
+                        Credentials are hardcoded in application build.
                     </p>
                     </div>
                     {isSupabaseConfigured ? (
@@ -349,7 +277,7 @@ WITH CHECK (auth.uid() = user_id);
                             <CloudOff className="text-red-600" />
                             <div>
                                 <h4 className="font-bold text-red-900 dark:text-red-100 text-sm">Forced Offline Mode Active</h4>
-                                <p className="text-xs text-red-800 dark:text-red-200">System is ignoring environment variables due to connection errors.</p>
+                                <p className="text-xs text-red-800 dark:text-red-200">System is skipping connection attempts.</p>
                             </div>
                         </div>
                         <Button size="sm" onClick={handleReconnect} icon={<RefreshCw size={14}/>}>
@@ -357,36 +285,10 @@ WITH CHECK (auth.uid() = user_id);
                         </Button>
                     </div>
                 )}
-
-                <div className="space-y-4 bg-earth-50 dark:bg-stone-800 p-6 rounded-xl border border-earth-200 dark:border-stone-700">
-                    <Input 
-                    label="Supabase URL" 
-                    value={cloudUrl} 
-                    onChange={e => setCloudUrl(e.target.value)} 
-                    placeholder="https://your-project.supabase.co" 
-                    />
-                    <Input 
-                    label="Supabase Anon Key" 
-                    type="password" 
-                    value={cloudKey} 
-                    onChange={e => setCloudKey(e.target.value)} 
-                    placeholder="your-anon-key..." 
-                    />
-                    <div className="flex justify-end gap-3 pt-2">
-                        {cloudUrl && (
-                            <Button variant="outline" className={`text-red-500 border-red-200 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-900/20 ${confirmClear ? 'bg-red-600 text-white border-red-600 hover:bg-red-700' : ''}`} onClick={handleClearCloud} icon={<Trash2 size={16}/>}>
-                            {confirmClear ? 'Confirm Disconnect' : 'Disconnect'}
-                            </Button>
-                        )}
-                        <Button onClick={handleSaveCloud} icon={<Save size={16}/>}>Save Settings</Button>
-                    </div>
-                </div>
                 
-                {!isSupabaseConfigured && (
-                    <div className="mt-4 text-xs text-amber-600 bg-amber-50 p-3 rounded-lg">
-                        <strong>Note:</strong> You are currently in Offline Mock Mode. Data is only saved to this browser.
-                    </div>
-                )}
+                <div className="p-4 bg-earth-50 dark:bg-stone-800 rounded-xl text-sm font-mono break-all">
+                    https://psrofmaojlttfyrsarrc.supabase.co
+                </div>
             </Card>
 
             <Card className="max-w-2xl mx-auto border-t-4 border-t-blue-500">
@@ -400,7 +302,7 @@ WITH CHECK (auth.uid() = user_id);
                 </div>
                 
                 <p className="text-sm text-earth-600 dark:text-stone-300 mb-4">
-                    If you see <strong>Database error saving new user</strong>, run this script in Supabase SQL Editor.
+                    If you see <strong>Database error</strong> or <strong>400 Bad Request</strong>, run this script in Supabase SQL Editor.
                 </p>
 
                 {showSql && (

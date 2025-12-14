@@ -14,6 +14,7 @@ import { User, MapPin, Award, Target, Save, LogOut, CreditCard, Lock, Brain, Dat
 import { EXPERIENCE_LEVELS, HOMESTEAD_GOALS, OWNER_EMAIL } from '../../constants';
 import { authService } from '../../services/auth';
 import { notificationService } from '../../services/notificationService';
+import { syncEngine } from '../../services/syncEngine';
 import { useLocation } from 'react-router-dom';
 
 export const SettingsDashboard: React.FC = () => {
@@ -43,31 +44,106 @@ export const SettingsDashboard: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-        const user = await dbService.get<UserProfile>('user_profile', 'main_user');
         const auth = await authService.getCurrentUser();
-        const np = await notificationService.getPreferences('main_user');
-        
-        if (user) {
-           setProfile(user);
-           setFormData(user);
-        }
         setAuthUser(auth);
+
+        // Determine correct Profile ID
+        // If logged in (auth exists), use auth.id. Otherwise use 'main_user' (local mode).
+        const targetProfileId = auth ? auth.id : 'main_user';
         
-        if (np) {
-            setNotifPrefs(np);
-        } else {
-            // Create default prefs if missing
-            const defaults: NotificationPreference = {
-                id: 'pref_main_user',
+        let user = await dbService.get<UserProfile>('user_profile', targetProfileId);
+        
+        // MIGRATION / FALLBACK LOGIC:
+        // If we have an authenticated user but NO profile for that UUID,
+        // check if we have a legacy 'main_user' profile we can migrate/adopt.
+        if (!user && auth) {
+            const localFallback = await dbService.get<UserProfile>('user_profile', 'main_user');
+            if (localFallback) {
+                console.log("Migrating local 'main_user' profile to authenticated ID:", auth.id);
+                // Clone local data to new ID
+                user = {
+                    ...localFallback,
+                    id: auth.id,
+                    userId: auth.id,
+                    email: auth.email, // Ensure email matches auth
+                    updatedAt: Date.now(),
+                    syncStatus: 'pending'
+                };
+                await dbService.put('user_profile', user);
+                // Optionally delete old one, or keep as backup
+            }
+        }
+
+        // SELF-HEAL: If still no user, create fresh default
+        if (!user && auth) {
+            console.log("Profile missing, generating default...");
+            user = {
+                id: auth.id,
+                userId: auth.id,
+                name: auth.email.split('@')[0],
+                email: auth.email,
+                zipCode: '',
+                hardinessZone: '',
+                experienceLevel: 'beginner',
+                goals: [],
+                interests: [],
+                preferences: { organicOnly: false, useMetric: false, enableNotifications: true },
+                role: 'user', 
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                syncStatus: 'pending'
+            };
+            await dbService.put('user_profile', user);
+        } else if (!user && !auth) {
+             // Fallback for completely unauthed fresh load (shouldn't happen often due to auth modal)
+             // But useful for dev
+             user = {
+                id: 'main_user',
                 userId: 'main_user',
+                name: 'Homesteader',
+                email: '',
+                zipCode: '',
+                hardinessZone: '',
+                experienceLevel: 'beginner',
+                goals: [],
+                interests: [],
+                preferences: { organicOnly: false, useMetric: false, enableNotifications: true },
+                role: 'user', 
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                syncStatus: 'pending'
+            };
+            await dbService.put('user_profile', user);
+        }
+
+        // Notification Preferences
+        const prefsId = auth ? auth.id : 'main_user';
+        let np = await notificationService.getPreferences(prefsId);
+        
+        if (!np) {
+            // Try fallback naming convention
+            np = await notificationService.getPreferences('pref_' + prefsId);
+        }
+
+        if (!np) {
+            const defaults: NotificationPreference = {
+                id: 'pref_' + prefsId,
+                userId: prefsId,
                 emailEnabled: true,
                 pushEnabled: true,
                 categories: { task: true, breeding: true, system: true, marketing: false },
                 createdAt: Date.now(), updatedAt: Date.now(), syncStatus: 'pending'
             };
             await notificationService.savePreferences(defaults);
-            setNotifPrefs(defaults);
+            np = defaults;
         }
+        
+        if (user) {
+           setProfile(user);
+           setFormData(user);
+        }
+        
+        setNotifPrefs(np);
 
     } catch(e) {
         console.error("Failed to load settings data", e);
@@ -81,31 +157,45 @@ export const SettingsDashboard: React.FC = () => {
     setIsSaving(true);
     
     try {
-        // Sync profile changes to Supabase Auth Metadata (e.g. Phone, Display Name)
-        // This ensures the admin console has the latest info
+        const currentUser = await authService.getCurrentUser();
+        
+        // Sync profile changes to Supabase Auth Metadata
         await authService.syncProfileToAuth(formData.email, { 
             name: formData.name, 
             phone: formData.phone 
         });
 
+        // CRITICAL: Force the ID to match Auth UUID if logged in.
+        // This ensures Supabase RLS policies (auth.uid() = id) accept the record.
+        const correctId = currentUser ? currentUser.id : profile.id;
+
         const updated: UserProfile = {
            ...profile,
            ...formData,
+           id: correctId,
+           userId: correctId,
            updatedAt: Date.now(),
            syncStatus: 'pending' as const
         };
         // Remove transient field 'phone' if we added it to formData for UI state only
         delete (updated as any).phone; 
 
+        // Save to Local DB with the Correct ID
         await dbService.put('user_profile', updated);
+        
+        // Cleanup old local profile if we migrated IDs
+        if (profile.id === 'main_user' && correctId !== 'main_user') {
+            await dbService.delete('user_profile', 'main_user');
+        }
+        
+        // Force Sync Immediately
+        await syncEngine.pushChanges();
         
         setProfile(updated);
         setIsEditing(false);
         await loadData(); 
     } catch (e) {
         console.error("Save failed", e);
-        // Using non-blocking feedback could be better, but alert is usually safe in sandbox if 'allow-modals' is present.
-        // However, given the environment issue, console error is safer.
     } finally {
         setIsSaving(false);
     }
@@ -146,16 +236,20 @@ export const SettingsDashboard: React.FC = () => {
   };
 
   const handleForceLogout = async () => {
-      // Direct logout without confirmation for error recovery
       await authService.logout();
   };
 
   const handleFactoryReset = async () => {
-      // Direct reset without window.confirm due to sandbox issues
-      // This is a drastic action, but if the user clicks it here, they likely need it.
-      // Ideally we would show a custom modal, but simple immediate action is requested.
+      // Preserve config keys before wiping if user uses this panic button
+      const url = localStorage.getItem('homestead_supabase_url');
+      const key = localStorage.getItem('homestead_supabase_key');
+      
       localStorage.clear();
       await dbService.clearDatabase();
+      
+      if (url) localStorage.setItem('homestead_supabase_url', url);
+      if (key) localStorage.setItem('homestead_supabase_key', key);
+      
       window.location.reload();
   };
 

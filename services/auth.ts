@@ -265,6 +265,10 @@ export const authService = {
       if (!user) return { success: false, error: "User not found locally. Try registering for Offline Mode." };
       if (user.passwordHash !== password) return { success: false, error: "Invalid password." };
 
+      // Ensure profile exists even on login, handling edge case where it was deleted
+      const role = user.roles && user.roles.length > 0 ? user.roles[0] : 'user';
+      await this.ensureProfileExists(user.id, user.email, role);
+
       localStorage.setItem('homestead_local_user_id', user.id);
       this.notifyAuthChange();
       return { success: true };
@@ -277,10 +281,21 @@ export const authService = {
   },
 
   async ensureProfileExists(userId: string, email: string, role: UserRole, name?: string) {
-        const existing = await dbService.get<UserProfile>('user_profile', userId);
+        // Check for specific profile record. For local mode, we often default to 'main_user'
+        // But let's check for the actual user ID first
+        let existing = await dbService.get<UserProfile>('user_profile', userId);
+        
+        // If we are in single-user local mode, check 'main_user' as fallback
+        if (!existing && userId !== 'main_user') {
+             existing = await dbService.get<UserProfile>('user_profile', 'main_user');
+        }
+
         if (!existing) {
+            // Use 'main_user' as the ID for consistency in local mode unless specified otherwise
+            const profileId = isSupabaseConfigured ? userId : 'main_user';
+            
             const newProfile: UserProfile = {
-                id: userId, 
+                id: profileId, 
                 userId: userId,
                 name: name || email.split('@')[0],
                 email: email,
