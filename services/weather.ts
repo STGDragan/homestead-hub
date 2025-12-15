@@ -5,7 +5,10 @@ import { WeatherForecast, WeatherAlert, WeatherCondition } from '../types';
 const CONDITIONS: WeatherCondition[] = ['sunny', 'cloudy', 'rain', 'storm', 'clear', 'snow'];
 
 // Helper to get base temperature from USDA Zone (rough approximation for demo)
-const getBaseTempForZone = (zoneStr: string): number => {
+const getBaseTempForZone = (zoneStr: string = '7a'): number => {
+    // Safety check for undefined/null/empty string
+    if (!zoneStr || typeof zoneStr !== 'string') zoneStr = '7a';
+
     // Extract number from string like "4b" -> 4
     const match = zoneStr.match(/(\d+)/);
     const zone = match ? parseInt(match[0]) : 7; // Default to zone 7 if unknown

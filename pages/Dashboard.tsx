@@ -121,24 +121,32 @@ export const Dashboard: React.FC = () => {
 
   useEffect(() => {
     const loadData = async () => {
-        const currentUser = await authService.getCurrentUser();
-        const profileId = currentUser ? currentUser.id : 'main_user';
-        
-        let user = await dbService.get<UserProfile>('user_profile', profileId);
-        
-        if (!user && profileId !== 'main_user') {
-            user = await dbService.get<UserProfile>('user_profile', 'main_user');
-        }
-        
-        if (user) {
-            setProfile(user);
-            // Fetch weather using User's Zone to ensure consistency with Weather Tab
-            const currentW = await weatherService.getCurrentConditions(user.hardinessZone);
-            setWeather(currentW);
-        } else {
-            // Fallback for no profile
-            const currentW = await weatherService.getCurrentConditions('7a');
-            setWeather(currentW);
+        try {
+            const currentUser = await authService.getCurrentUser();
+            const profileId = currentUser ? currentUser.id : 'main_user';
+            
+            let user = await dbService.get<UserProfile>('user_profile', profileId);
+            
+            if (!user && profileId !== 'main_user') {
+                user = await dbService.get<UserProfile>('user_profile', 'main_user');
+            }
+            
+            if (user) {
+                setProfile(user);
+                // Robust Fallback: If hardinessZone is missing from DB record, default to 7a
+                const zone = user.hardinessZone || '7a';
+                const currentW = await weatherService.getCurrentConditions(zone);
+                setWeather(currentW);
+            } else {
+                // Fallback for no profile
+                const currentW = await weatherService.getCurrentConditions('7a');
+                setWeather(currentW);
+            }
+        } catch (e) {
+            console.error("Dashboard Load Error:", e);
+            // Even if everything fails, load default weather to prevent blank screen
+            const fallbackW = await weatherService.getCurrentConditions('7a');
+            setWeather(fallbackW);
         }
     };
     loadData();

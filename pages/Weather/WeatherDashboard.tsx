@@ -25,32 +25,36 @@ export const WeatherDashboard: React.FC = () => {
   }, []);
 
   const loadData = async () => {
-    // Resolve correct User ID (Auth or Local)
-    const currentUser = await authService.getCurrentUser();
-    const profileId = currentUser ? currentUser.id : 'main_user';
-    
-    let profile = await dbService.get<UserProfile>('user_profile', profileId);
-    
-    // Fallback: If logged in but profile hasn't synced/migrated yet, try main_user
-    if (!profile && profileId !== 'main_user') {
-        profile = await dbService.get<UserProfile>('user_profile', 'main_user');
-    }
-    
-    let zone = '7a'; // Default
-    if (profile) {
-        zone = profile.hardinessZone || '7a';
-        setLocationInfo({ 
-            zip: profile.zipCode || 'Local', 
-            zone: zone
-        });
-    }
+    try {
+        // Resolve correct User ID (Auth or Local)
+        const currentUser = await authService.getCurrentUser();
+        const profileId = currentUser ? currentUser.id : 'main_user';
+        
+        let profile = await dbService.get<UserProfile>('user_profile', profileId);
+        
+        // Fallback: If logged in but profile hasn't synced/migrated yet, try main_user
+        if (!profile && profileId !== 'main_user') {
+            profile = await dbService.get<UserProfile>('user_profile', 'main_user');
+        }
+        
+        let zone = '7a'; // Default
+        if (profile) {
+            zone = profile.hardinessZone || '7a';
+            setLocationInfo({ 
+                zip: profile.zipCode || 'Local', 
+                zone: zone
+            });
+        }
 
-    // Pass the ZONE to the service to ensure consistent data across app
-    const f = await weatherService.getForecast(zone);
-    const a = await weatherService.getAlerts(zone);
-    
-    setForecasts(f);
-    setAlerts(a);
+        // Pass the ZONE to the service to ensure consistent data across app
+        const f = await weatherService.getForecast(zone);
+        const a = await weatherService.getAlerts(zone);
+        
+        setForecasts(f);
+        setAlerts(a);
+    } catch(e) {
+        console.error("Weather load failed", e);
+    }
   };
 
   return (
