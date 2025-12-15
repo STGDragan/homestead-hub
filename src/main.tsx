@@ -86,6 +86,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
+    console.log("Mounting Homestead Hub...");
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <React.StrictMode>
@@ -94,4 +95,6 @@ if (rootElement) {
         </ErrorBoundary>
       </React.StrictMode>
     );
+} else {
+    console.error("Root element not found!");
 }

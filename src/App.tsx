@@ -60,6 +60,7 @@ export const App: React.FC = () => {
 
     const initApp = async () => {
       try {
+        console.log("Initializing Homestead Hub...");
         await Promise.all([
             subscriptionService.initializePlans().catch(e => console.warn('Plan Init Failed', e)),
             libraryService.initSystemPlants().catch(e => console.warn('Plant Init Failed', e)),
