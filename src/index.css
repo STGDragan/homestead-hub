@@ -1,7 +1,21 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Base Reset & fallback for when Tailwind hasn't loaded yet */
+:root {
+  --bg-color: #f5f0eb;
+  --text-color: #5c412f;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: 'Lato', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
@@ -22,13 +36,11 @@
   background: #bfa082; 
 }
 
-/* Hide scrollbar for Chrome, Safari and Opera */
+/* Utility to hide scrollbar but keep functionality */
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }
-
-/* Hide scrollbar for IE, Edge and Firefox */
 .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }

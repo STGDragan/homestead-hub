@@ -1,8 +1,7 @@
-
 import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
-import './index.css'; // Ensuring Tailwind styles are loaded
+import './index.css'; // CRITICAL: This imports Tailwind
 
 // Global Error Handler for non-React errors
 window.onerror = function(message, source, lineno, colno, error) {
@@ -94,7 +93,4 @@ if (rootElement) {
         </ErrorBoundary>
       </React.StrictMode>
     );
-} else {
-    // Fallback if index.html is malformed
-    document.body.innerHTML = '<div style="color:red; padding: 20px;">Critical Error: #root element missing in index.html</div>';
 }
