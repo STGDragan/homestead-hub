@@ -1,17 +1,17 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { App } from './App';
+import { HomesteadApp } from './HomesteadApp';
 import './index.css';
 
-console.log('Homestead Hub Mounting...');
+console.log('BOOTSTRAPPING HOMESTEAD APP v2');
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <React.StrictMode>
-          <App />
+          <HomesteadApp />
       </React.StrictMode>
     );
 } else {
