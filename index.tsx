@@ -2,11 +2,25 @@
 import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
-import './index.css';
+// import './index.css'; // REMOVED: File does not exist and causes blank screen crash
 
-// Global Error Handler for non-React errors
+// Global Error Handler for non-React errors (e.g. SyntaxError, Import Failure)
 window.onerror = function(message, source, lineno, colno, error) {
     console.error("Global Error Caught:", message, error);
+    const root = document.getElementById('root');
+    // Only override if React hasn't rendered anything yet (still blank)
+    if (root && (!root.innerHTML || root.innerHTML === '')) {
+        root.innerHTML = `
+            <div style="padding: 2rem; color: #7f1d1d; background: #fef2f2; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                <h1 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Startup Error</h1>
+                <p>The application failed to start.</p>
+                <pre style="background: rgba(0,0,0,0.05); padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; overflow: auto; max-width: 800px; text-align: left;">${message}\nAt: ${source}:${lineno}</pre>
+                <button onclick="localStorage.clear(); window.location.reload();" style="padding: 0.75rem 1.5rem; background: #dc2626; color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: bold;">
+                    Factory Reset & Reload
+                </button>
+            </div>
+        `;
+    }
 };
 
 interface ErrorBoundaryProps {
@@ -31,6 +45,19 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
+
+  componentDidMount() {
+    window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    // Log async errors but don't crash UI unless critical
+    console.warn("Unhandled Async Error:", event.reason);
+  };
 
   handleReset = () => {
       if (confirm("This will clear your local cached data to fix the crash. Your connection settings will be preserved. Continue?")) {
@@ -86,7 +113,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
-    console.log("Mounting Homestead Hub Application...");
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <React.StrictMode>
@@ -96,5 +122,5 @@ if (rootElement) {
       </React.StrictMode>
     );
 } else {
-    console.error("Root element not found!");
+    document.body.innerHTML = '<div style="padding: 2rem; color: red;"><h1>Critical Error: Root element not found</h1></div>';
 }

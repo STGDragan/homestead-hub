@@ -40,8 +40,6 @@ import { RoleGuard } from './components/auth/RoleGuard';
 import { authService } from './services/auth';
 import { subscriptionService } from './services/subscriptionService';
 import { libraryService } from './services/libraryService';
-import { RecipeDashboard } from './pages/Recipes/RecipeDashboard';
-import { RecipeDetail } from './pages/Recipes/RecipeDetail';
 
 export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -50,13 +48,9 @@ export const App: React.FC = () => {
   const initRef = useRef(false);
 
   const checkAuth = async () => {
-      try {
-        const user = await authService.getCurrentUser();
-        setIsAuthenticated(!!user);
-      } catch (e) {
-        console.warn("Auth check failed", e);
-        setIsAuthenticated(false);
-      }
+      // Don't set loading true here to avoid flickering on re-checks
+      const user = await authService.getCurrentUser();
+      setIsAuthenticated(!!user);
   };
 
   useEffect(() => {
@@ -65,20 +59,13 @@ export const App: React.FC = () => {
 
     const initApp = async () => {
       try {
-        console.log("Homestead Hub: Starting Initialization...");
-        
-        // Initial checks
-        await checkAuth();
-
-        // Load critical data in background
-        Promise.all([
+        // Parallel init for speed and fault tolerance
+        await Promise.all([
             subscriptionService.initializePlans().catch(e => console.warn('Plan Init Failed', e)),
             libraryService.initSystemPlants().catch(e => console.warn('Plant Init Failed', e)),
             libraryService.initSystemAnimals().catch(e => console.warn('Animal Init Failed', e)),
-        ]).finally(() => {
-             console.log("Homestead Hub: Services Initialized");
-        });
-
+            checkAuth()
+        ]);
       } catch (e) {
         console.error("Critical App Init Failure:", e);
       } finally {
@@ -86,13 +73,13 @@ export const App: React.FC = () => {
       }
     };
 
-    // Safety Timeout: Force app to load after 3 seconds even if services are slow
+    // Safety Timeout: Force app to load after 5 seconds even if DB is slow/stuck
     const timeoutId = setTimeout(() => {
         if (loading) {
             console.warn("Forcing App Load due to timeout");
             setLoading(false);
         }
-    }, 3000);
+    }, 5000);
 
     initApp();
 
@@ -120,8 +107,8 @@ export const App: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-earth-100 text-earth-600 dark:bg-night-950 dark:text-night-400">
         <div className="animate-pulse flex flex-col items-center">
-           <span className="text-3xl font-serif font-bold mb-2 text-green-700">Homestead Hub</span>
-           <span className="text-sm">Loading your farm...</span>
+           <span className="text-2xl font-serif font-bold mb-2">Homestead Hub</span>
+           <span>Loading your farm...</span>
         </div>
       </div>
     );
@@ -178,9 +165,6 @@ export const App: React.FC = () => {
           <Route path="/help" element={<HelpCenter />} />
           <Route path="/reports" element={<ReportsDashboard />} />
           <Route path="/messages" element={<MessagingDashboard />} />
-          
-          <Route path="/recipes" element={<RecipeDashboard />} />
-          <Route path="/recipes/:id" element={<RecipeDetail />} />
           
           <Route path="/sync" element={<SyncDashboard />} />
           
