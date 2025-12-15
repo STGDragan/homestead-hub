@@ -2,7 +2,7 @@
 import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
-import './index.css';
+import './index.css'; // Ensuring Tailwind styles are loaded
 
 // Global Error Handler for non-React errors
 window.onerror = function(message, source, lineno, colno, error) {
@@ -36,11 +36,13 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       if (confirm("This will clear your local cached data to fix the crash. Your connection settings will be preserved. Continue?")) {
           const url = localStorage.getItem('homestead_supabase_url');
           const key = localStorage.getItem('homestead_supabase_key');
+          const offline = localStorage.getItem('homestead_force_offline');
           
           localStorage.clear();
           
           if (url) localStorage.setItem('homestead_supabase_url', url);
           if (key) localStorage.setItem('homestead_supabase_key', key);
+          if (offline) localStorage.setItem('homestead_force_offline', offline);
           
           window.location.reload();
       }
@@ -92,4 +94,7 @@ if (rootElement) {
         </ErrorBoundary>
       </React.StrictMode>
     );
+} else {
+    // Fallback if index.html is malformed
+    document.body.innerHTML = '<div style="color:red; padding: 20px;">Critical Error: #root element missing in index.html</div>';
 }
