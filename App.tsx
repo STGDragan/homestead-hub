@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -45,53 +45,57 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authKey, setAuthKey] = useState(0); 
+  const initRef = useRef(false);
 
   const checkAuth = async () => {
-      setLoading(true);
+      // Don't set loading true here to avoid flickering on re-checks
       const user = await authService.getCurrentUser();
-      
-      if (user) {
-          setIsAuthenticated(true);
-      } else {
-          setIsAuthenticated(false);
-      }
-      setLoading(false);
+      setIsAuthenticated(!!user);
   };
 
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+
     const initApp = async () => {
       try {
-        await subscriptionService.initializePlans(); 
-        await libraryService.initSystemPlants(); 
-        await libraryService.initSystemAnimals(); 
-        await checkAuth();
+        // Parallel init for speed and fault tolerance
+        await Promise.all([
+            subscriptionService.initializePlans().catch(e => console.warn('Plan Init Failed', e)),
+            libraryService.initSystemPlants().catch(e => console.warn('Plant Init Failed', e)),
+            libraryService.initSystemAnimals().catch(e => console.warn('Animal Init Failed', e)),
+            checkAuth()
+        ]);
       } catch (e) {
-        console.error("App init failed:", e);
+        console.error("Critical App Init Failure:", e);
+      } finally {
         setLoading(false);
       }
     };
+
+    // Safety Timeout: Force app to load after 5 seconds even if DB is slow/stuck
+    const timeoutId = setTimeout(() => {
+        if (loading) {
+            console.warn("Forcing App Load due to timeout");
+            setLoading(false);
+        }
+    }, 5000);
+
     initApp();
 
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // Auth Listener
+  useEffect(() => {
     const handleAuthChange = async () => {
         setAuthKey(prev => prev + 1);
         await checkAuth();
-        // Ensure we don't get stuck on a protected route if logged out
-        if (!authService.getSession() && window.location.hash !== '#/') {
-             window.location.hash = '#/';
-        }
     };
     window.addEventListener('auth-change', handleAuthChange);
     
-    const handleStorageChange = (e: StorageEvent) => {
-        if (e.key === 'auth_session') {
-            handleAuthChange();
-        }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
     return () => {
         window.removeEventListener('auth-change', handleAuthChange);
-        window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
@@ -164,7 +168,6 @@ export const App: React.FC = () => {
           
           <Route path="/sync" element={<SyncDashboard />} />
           
-          {/* Public/Partner Route (Could be separated from main layout in real app) */}
           <Route path="/partner" element={<PartnerPortal />} />
           
           <Route 
