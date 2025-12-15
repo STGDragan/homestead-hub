@@ -4,40 +4,61 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Plus, CloudRain, Sun, Sprout, AlertCircle, Database, Smartphone, BookOpen } from 'lucide-react';
+import { Plus, CloudRain, Sun, Sprout, AlertCircle, Database, Smartphone, BookOpen, Cloud, CloudLightning, Snowflake } from 'lucide-react';
 import { dbService } from '../services/db';
-import { Task, UserProfile, HarvestLog } from '../types';
+import { authService } from '../services/auth';
+import { weatherService } from '../services/weather';
+import { Task, UserProfile, HarvestLog, WeatherForecast } from '../types';
 import { AdPlacement } from '../components/monetization/AdPlacement';
 import { AgentDashboardWidget } from '../components/ai/AgentDashboardWidget';
 import { TaskEditorModal } from '../components/tasks/TaskEditorModal';
 import { HarvestLogModal } from '../components/journal/HarvestLogModal';
 import { gardenAIService } from '../services/gardenAI';
 
-const WeatherWidget = () => (
-  <Card className="bg-gradient-to-br from-leaf-700 to-leaf-900 text-white border-none shadow-lg">
-    <div className="flex justify-between items-start">
-      <div>
-        <p className="text-leaf-100 text-sm font-bold uppercase tracking-wider mb-1">Current Conditions</p>
-        <h2 className="text-3xl font-serif font-bold">Partly Cloudy</h2>
-        <div className="flex items-baseline gap-2 mt-2">
-          <span className="text-5xl font-bold tracking-tighter">72°</span>
-          <span className="text-leaf-200">High 78° / Low 65°</span>
+const ICONS: Record<string, React.FC<any>> = {
+  sunny: Sun,
+  cloudy: Cloud,
+  rain: CloudRain,
+  storm: CloudLightning,
+  snow: Snowflake,
+  clear: Sun,
+};
+
+const WeatherWidget: React.FC<{ weather: WeatherForecast | null }> = ({ weather }) => {
+  if (!weather) return (
+      <Card className="bg-gradient-to-br from-leaf-700 to-leaf-900 text-white border-none shadow-lg animate-pulse h-40">
+          <div className="p-6">Loading weather...</div>
+      </Card>
+  );
+
+  const Icon = ICONS[weather.condition] || Sun;
+
+  return (
+    <Card className="bg-gradient-to-br from-leaf-700 to-leaf-900 text-white border-none shadow-lg">
+        <div className="flex justify-between items-start">
+        <div>
+            <p className="text-leaf-100 text-sm font-bold uppercase tracking-wider mb-1">Today's Forecast</p>
+            <h2 className="text-3xl font-serif font-bold capitalize">{weather.condition}</h2>
+            <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-5xl font-bold tracking-tighter">{weather.tempHigh}°</span>
+            <span className="text-leaf-200">Low {weather.tempLow}°</span>
+            </div>
         </div>
-      </div>
-      <CloudRain size={48} className="text-leaf-300 opacity-80" />
-    </div>
-    <div className="mt-6 flex gap-6 text-sm font-medium text-leaf-100 border-t border-leaf-600/50 pt-4">
-      <div className="flex items-center gap-2">
-        <Sun size={16} />
-        <span>UV Index: 4 (Mod)</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <CloudRain size={16} />
-        <span>Humidity: 45%</span>
-      </div>
-    </div>
-  </Card>
-);
+        <Icon size={48} className="text-leaf-300 opacity-80" />
+        </div>
+        <div className="mt-6 flex gap-6 text-sm font-medium text-leaf-100 border-t border-leaf-600/50 pt-4">
+        <div className="flex items-center gap-2">
+            <CloudRain size={16} />
+            <span>Precip: {weather.precipChance}%</span>
+        </div>
+        <div className="flex items-center gap-2">
+            <Cloud size={16} />
+            <span>Humidity: {weather.humidity}%</span>
+        </div>
+        </div>
+    </Card>
+  );
+};
 
 const TaskList: React.FC<{ refreshTrigger: number }> = ({ refreshTrigger }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -93,16 +114,34 @@ const TaskList: React.FC<{ refreshTrigger: number }> = ({ refreshTrigger }) => {
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [weather, setWeather] = useState<WeatherForecast | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showHarvestModal, setShowHarvestModal] = useState(false);
   const [taskRefreshKey, setTaskRefreshKey] = useState(0);
 
   useEffect(() => {
-    const loadProfile = async () => {
-        const user = await dbService.get<UserProfile>('user_profile', 'main_user');
-        if (user) setProfile(user);
+    const loadData = async () => {
+        const currentUser = await authService.getCurrentUser();
+        const profileId = currentUser ? currentUser.id : 'main_user';
+        
+        let user = await dbService.get<UserProfile>('user_profile', profileId);
+        
+        if (!user && profileId !== 'main_user') {
+            user = await dbService.get<UserProfile>('user_profile', 'main_user');
+        }
+        
+        if (user) {
+            setProfile(user);
+            // Fetch weather using User's Zone to ensure consistency with Weather Tab
+            const currentW = await weatherService.getCurrentConditions(user.hardinessZone);
+            setWeather(currentW);
+        } else {
+            // Fallback for no profile
+            const currentW = await weatherService.getCurrentConditions('7a');
+            setWeather(currentW);
+        }
     };
-    loadProfile();
+    loadData();
   }, []);
 
   const handleSaveTask = async (taskData: Partial<Task>) => {
@@ -129,7 +168,6 @@ export const Dashboard: React.FC = () => {
   const handleSaveHarvest = async (log: HarvestLog) => {
     await dbService.put('harvest_logs', log);
     setShowHarvestModal(false);
-    // Could add toast here
   };
 
   return (
@@ -205,7 +243,7 @@ export const Dashboard: React.FC = () => {
         <div className="md:col-span-2 space-y-8">
           <section>
             <h2 className="text-xl font-serif font-bold text-earth-900 dark:text-earth-100 mb-4">Today's Weather</h2>
-            <WeatherWidget />
+            <WeatherWidget weather={weather} />
           </section>
 
           <section>
@@ -219,15 +257,18 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-          <Card className="bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-900/30">
-            <div className="flex gap-3">
-              <AlertCircle className="text-amber-600 dark:text-amber-400 shrink-0" />
-              <div>
-                <h4 className="font-bold text-amber-800 dark:text-amber-100">Frost Warning</h4>
-                <p className="text-sm text-amber-700 dark:text-amber-200/80 mt-1">Temperatures dropping to 30°F tonight. Cover sensitive crops.</p>
-              </div>
-            </div>
-          </Card>
+          
+          {weather && weather.tempLow <= 32 && (
+              <Card className="bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-900/30 animate-pulse">
+                <div className="flex gap-3">
+                  <AlertCircle className="text-amber-600 dark:text-amber-400 shrink-0" />
+                  <div>
+                    <h4 className="font-bold text-amber-800 dark:text-amber-100">Frost Warning</h4>
+                    <p className="text-sm text-amber-700 dark:text-amber-200/80 mt-1">Temperatures dropping to {weather.tempLow}°F. Cover sensitive crops.</p>
+                  </div>
+                </div>
+              </Card>
+          )}
 
           <AdPlacement placementId="dashboard_feature_block" />
 

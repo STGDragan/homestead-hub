@@ -25,15 +25,19 @@ import {
   BookOpen,
   Megaphone,
   LogOut,
-  AlertCircle
+  AlertCircle,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 import { NAV_ITEMS } from '../constants';
 import { dbService } from '../services/db';
 import { notificationService } from '../services/notificationService';
 import { authService } from '../services/auth';
+import { isSupabaseConfigured } from '../services/supabaseClient';
 import { UserProfile, AuthUser, Sponsor, AdCampaign } from '../types';
 import { NotificationCenter } from './messaging/NotificationCenter';
-import { SyncIndicator } from './sync/SyncIndicator'; 
+import { SyncIndicator } from './sync/SyncIndicator';
+import { AuthModal } from './auth/AuthModal';
 
 const icons: Record<string, React.FC<any>> = {
   LayoutDashboard,
@@ -64,6 +68,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     return false;
   });
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingAdminCount, setPendingAdminCount] = useState(0);
   
@@ -174,15 +179,21 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
       {/* Sidebar (Desktop) */}
       <aside className="hidden md:flex flex-col w-64 bg-earth-50 dark:bg-night-900 border-r border-earth-200 dark:border-night-800 h-screen sticky top-0 p-6 transition-colors duration-200">
-        <div className="mb-10 flex justify-between items-start">
-          <div>
-            <Link to="/">
-                <h1 className="font-serif font-black text-2xl text-leaf-800 dark:text-leaf-500 tracking-tight cursor-pointer">Homestead Hub</h1>
-            </Link>
-            <div className="flex items-center gap-2 mt-1">
-               <SyncIndicator /> 
-               <span className="text-earth-500 dark:text-night-400 text-sm font-medium">Sync Active</span>
-            </div>
+        <div className="mb-6 flex flex-col items-start">
+          <Link to="/">
+              <h1 className="font-serif font-black text-2xl text-leaf-800 dark:text-leaf-500 tracking-tight cursor-pointer">Homestead Hub</h1>
+          </Link>
+          
+          <div className="flex items-center gap-2 mt-2 bg-earth-100 dark:bg-stone-800 px-2 py-1 rounded-md cursor-pointer" onClick={() => setShowConfig(true)}>
+             {isSupabaseConfigured ? (
+                 <span className="text-[10px] font-bold text-green-700 dark:text-green-400 flex items-center gap-1">
+                     <Cloud size={10} /> Cloud Connected
+                 </span>
+             ) : (
+                 <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 animate-pulse">
+                     <CloudOff size={10} /> Connect Cloud
+                 </span>
+             )}
           </div>
         </div>
 
@@ -271,6 +282,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         )}
         {children}
       </main>
+
+      {/* Config Modal (Always accessible) */}
+      <AuthModal 
+          isOpen={showConfig} 
+          onClose={() => setShowConfig(false)} 
+          onSuccess={() => setShowConfig(false)} 
+      />
 
       {/* Bottom Nav (Mobile) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-night-900 border-t border-earth-200 dark:border-night-800 pb-safe pt-2 px-4 flex justify-between items-center z-30 h-[80px] overflow-x-auto">

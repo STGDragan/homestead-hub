@@ -1,5 +1,7 @@
+
 import React, { useEffect, useState } from 'react';
 import { dbService } from '../../services/db';
+import { authService } from '../../services/auth';
 import { GardenBed, Plant, UserProfile } from '../../types';
 import { BedCard } from '../../components/garden/BedCard';
 import { PlantSuggestionsPanel } from '../../components/garden/PlantSuggestionsPanel';
@@ -34,7 +36,14 @@ export const GardenDashboard: React.FC = () => {
     try {
       const loadedBeds = await dbService.getAll<GardenBed>('garden_beds');
       const loadedPlants = await dbService.getAll<Plant>('plants');
-      const profile = await dbService.get<UserProfile>('user_profile', 'main_user');
+      
+      const currentUser = await authService.getCurrentUser();
+      const profileId = currentUser ? currentUser.id : 'main_user';
+      let profile = await dbService.get<UserProfile>('user_profile', profileId);
+      
+      if (!profile && profileId !== 'main_user') {
+          profile = await dbService.get<UserProfile>('user_profile', 'main_user');
+      }
       
       setBeds(loadedBeds);
       setAllPlants(loadedPlants);

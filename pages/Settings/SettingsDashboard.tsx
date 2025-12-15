@@ -23,7 +23,7 @@ export const SettingsDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'security' | 'ai' | 'data' | 'advertising' | 'notifications'>('profile');
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreference | null>(null);
   
-  const [formData, setFormData] = useState<Partial<UserProfile> & { phone?: string }>({});
+  const [formData, setFormData] = useState<Partial<UserProfile>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -48,35 +48,28 @@ export const SettingsDashboard: React.FC = () => {
         setAuthUser(auth);
 
         // Determine correct Profile ID
-        // If logged in (auth exists), use auth.id. Otherwise use 'main_user' (local mode).
         const targetProfileId = auth ? auth.id : 'main_user';
         
         let user = await dbService.get<UserProfile>('user_profile', targetProfileId);
         
-        // MIGRATION / FALLBACK LOGIC:
-        // If we have an authenticated user but NO profile for that UUID,
-        // check if we have a legacy 'main_user' profile we can migrate/adopt.
+        // MIGRATION / FALLBACK LOGIC
         if (!user && auth) {
             const localFallback = await dbService.get<UserProfile>('user_profile', 'main_user');
             if (localFallback) {
-                console.log("Migrating local 'main_user' profile to authenticated ID:", auth.id);
-                // Clone local data to new ID
                 user = {
                     ...localFallback,
                     id: auth.id,
                     userId: auth.id,
-                    email: auth.email, // Ensure email matches auth
+                    email: auth.email,
                     updatedAt: Date.now(),
                     syncStatus: 'pending'
                 };
                 await dbService.put('user_profile', user);
-                // Optionally delete old one, or keep as backup
             }
         }
 
-        // SELF-HEAL: If still no user, create fresh default
+        // SELF-HEAL
         if (!user && auth) {
-            console.log("Profile missing, generating default...");
             user = {
                 id: auth.id,
                 userId: auth.id,
@@ -95,8 +88,6 @@ export const SettingsDashboard: React.FC = () => {
             };
             await dbService.put('user_profile', user);
         } else if (!user && !auth) {
-             // Fallback for completely unauthed fresh load (shouldn't happen often due to auth modal)
-             // But useful for dev
              user = {
                 id: 'main_user',
                 userId: 'main_user',
@@ -121,7 +112,6 @@ export const SettingsDashboard: React.FC = () => {
         let np = await notificationService.getPreferences(prefsId);
         
         if (!np) {
-            // Try fallback naming convention
             np = await notificationService.getPreferences('pref_' + prefsId);
         }
 
@@ -165,8 +155,7 @@ export const SettingsDashboard: React.FC = () => {
             phone: formData.phone 
         });
 
-        // CRITICAL: Force the ID to match Auth UUID if logged in.
-        // This ensures Supabase RLS policies (auth.uid() = id) accept the record.
+        // Force the ID to match Auth UUID if logged in
         const correctId = currentUser ? currentUser.id : profile.id;
 
         const updated: UserProfile = {
@@ -177,10 +166,8 @@ export const SettingsDashboard: React.FC = () => {
            updatedAt: Date.now(),
            syncStatus: 'pending' as const
         };
-        // Remove transient field 'phone' if we added it to formData for UI state only
-        delete (updated as any).phone; 
 
-        // Save to Local DB with the Correct ID
+        // Save to Local DB
         await dbService.put('user_profile', updated);
         
         // Cleanup old local profile if we migrated IDs
@@ -240,7 +227,6 @@ export const SettingsDashboard: React.FC = () => {
   };
 
   const handleFactoryReset = async () => {
-      // Preserve config keys before wiping if user uses this panic button
       const url = localStorage.getItem('homestead_supabase_url');
       const key = localStorage.getItem('homestead_supabase_key');
       
@@ -255,7 +241,6 @@ export const SettingsDashboard: React.FC = () => {
 
   if (loading) return <div className="p-8 text-center text-earth-500">Loading settings...</div>;
 
-  // Fallback for corrupt profile
   if (!profile) return (
       <div className="p-8 max-w-md mx-auto text-center space-y-6">
           <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-2xl border border-red-200 dark:border-red-800">

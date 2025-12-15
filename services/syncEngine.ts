@@ -54,7 +54,7 @@ export const syncEngine = {
                     // Special Handling for 'user_profile'
                     // Ensure core profile fields are synced to the dedicated table for relational integrity
                     if (item.storeName === 'user_profile' && item.operation !== 'delete') {
-                        const { id, email, role, name } = item.payload;
+                        const { id, email, role, name, phone, zipCode } = item.payload;
                         
                         // VALIDATION: Only attempt SQL write if ID is a valid UUID
                         // Postgres will throw 400 Bad Request if we try to insert 'main_user' into a UUID column
@@ -67,6 +67,8 @@ export const syncEngine = {
                                     email, 
                                     role: role || 'user', 
                                     name,
+                                    phone,
+                                    zip_code: zipCode,
                                     updated_at: new Date().toISOString()
                                 });
                                 if (error) {

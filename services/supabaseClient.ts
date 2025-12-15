@@ -1,59 +1,80 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// --- GLOBAL APP CONFIGURATION ---
-// These are now hardcoded into the build. 
-// Every user who loads the app will connect to this backend.
+// --- CONFIGURATION STRATEGY ---
+// 
+// 1. PROTOTYPE MODE (Current):
+//    We use `localStorage` to persist your API Key so the AI doesn't overwrite it 
+//    every time it regenerates this file. You configure this via the "Connection" button in the UI.
+//
+// 2. PRODUCTION MODE (Deployment):
+//    When you deploy to Vercel/Netlify, you should use Environment Variables.
+//    Uncomment the lines below and delete the localStorage logic.
+//
+//    const targetUrl = import.meta.env.VITE_SUPABASE_URL;
+//    const targetKey = import.meta.env.VITE_SUPABASE_KEY;
 
-const HARDCODED_URL = 'https://psrofmaojlttfyrsarrc.supabase.co'; // Pre-filled from your logs
-<<<<<<< HEAD
-const HARDCODED_KEY = 'sb_secret_O3v9_48MTS6tL8CuQUo2Dg_4jbJ1hJK'; // <--- PASTE YOUR KEY HERE ONCE
-=======
-const HARDCODED_KEY = 'INSERT_YOUR_ANON_KEY_HERE'; // <--- PASTE YOUR KEY HERE ONCE
->>>>>>> 400f689925feb619fba7831bd5956ad0db7c636e
+const HARDCODED_URL = 'https://psrofmaojlttfyrsarrc.supabase.co'; 
+const HARDCODED_KEY = 'INSERT_YOUR_ANON_KEY_HERE'; 
 
 // --------------------------------
 
-// Helper to clean strings
+// 1. Try to get config from Browser Storage (Persistent across AI edits)
+const storedUrl = typeof window !== 'undefined' ? localStorage.getItem('homestead_supabase_url') : null;
+const storedKey = typeof window !== 'undefined' ? localStorage.getItem('homestead_supabase_key') : null;
+
+// 2. Helper to clean strings
 const clean = (str: string | null | undefined) => (str || '').trim().replace(/\/$/, '');
 
-const targetUrl = clean(HARDCODED_URL);
-const targetKey = clean(HARDCODED_KEY);
+// 3. Determine final credentials (Storage > Hardcoded)
+// In a real app, `import.meta.env.VITE_SUPABASE_URL` would take precedence here.
+const targetUrl = clean(storedUrl || HARDCODED_URL);
+const targetKey = clean(storedKey || HARDCODED_KEY);
 
-// Validation
-const isUrlValid = (url: string) => {
-    try { 
-        const u = new URL(url); 
-        return u.protocol === 'http:' || u.protocol === 'https:';
-    } catch { return false; }
-};
-
-// Check if configured (User has replaced the placeholder)
-const isConfigured = 
-    targetUrl !== '' && 
-    targetKey !== '' && 
-<<<<<<< HEAD
-    targetKey !== 'sb_secret_O3v9_48MTS6tL8CuQUo2Dg_4jbJ1hJK';
-=======
-    targetKey !== 'INSERT_YOUR_ANON_KEY_HERE';
->>>>>>> 400f689925feb619fba7831bd5956ad0db7c636e
+// 4. Validation
+const isPlaceholder = targetKey.includes('INSERT_YOUR_ANON_KEY');
+const isConfigured = targetUrl !== '' && targetKey.length > 20 && !isPlaceholder;
 
 let client;
 
-if (isConfigured && isUrlValid(targetUrl)) {
-    console.log(`[Supabase] Initializing global client: ${targetUrl}`);
-    client = createClient(targetUrl, targetKey, {
-        auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-            detectSessionInUrl: false
-        }
-    });
+if (isConfigured) {
+    if (storedKey) {
+        console.log(`[Supabase] Connecting using PERSISTED key from Browser Storage.`);
+    } else {
+        console.log(`[Supabase] Connecting using HARDCODED key from source file.`);
+    }
+
+    try {
+        client = createClient(targetUrl, targetKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: false
+            }
+        });
+    } catch (e) {
+        console.error("[Supabase] Init Failed (Falling back to Mock):", e);
+        client = createClient('https://placeholder.supabase.co', 'placeholder');
+    }
 } else {
-    console.warn("[Supabase] Client not configured. Please edit services/supabaseClient.ts");
-    // Fallback dummy client to prevent crash before config
+    // Fallback dummy client
+    console.warn("[Supabase] No valid key found. App is running in Mock Mode.");
     client = createClient('https://placeholder.supabase.co', 'placeholder');
 }
 
 export const supabase = client;
 export const isSupabaseConfigured = isConfigured;
+
+// Helper to save config from UI
+export const saveConnectionConfig = (url: string, key: string) => {
+    localStorage.setItem('homestead_supabase_url', url);
+    localStorage.setItem('homestead_supabase_key', key);
+    window.location.reload();
+};
+
+// Helper to reset
+export const resetConnectionConfig = () => {
+    localStorage.removeItem('homestead_supabase_url');
+    localStorage.removeItem('homestead_supabase_key');
+    window.location.reload();
+};

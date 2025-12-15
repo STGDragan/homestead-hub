@@ -32,11 +32,11 @@ export const AdminDashboard: React.FC = () => {
 
   const SQL_SCRIPT = `
 /* 
-  FIX: "Database error saving new user" (AGGRESSIVE FIX + SCHEMA UPDATE)
-  Run this in the Supabase SQL Editor.
+  FIX: "Database error saving new user" + "Missing columns in user_profile"
+  Run this in the Supabase SQL Editor to patch the schema.
 */
 
--- 1. NUKE ALL TRIGGERS ON AUTH.USERS (Cleanup old logic)
+-- 1. CLEANUP OLD TRIGGERS ON AUTH.USERS
 DO $$
 DECLARE
     trg text;
@@ -53,22 +53,21 @@ BEGIN
     END LOOP;
 END $$;
 
--- 2. CLEANUP LIKELY FUNCTIONS
+-- 2. CLEANUP OLD FUNCTIONS
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 DROP FUNCTION IF EXISTS public.handle_new_user_custom() CASCADE;
 DROP FUNCTION IF EXISTS public.create_profile_for_user() CASCADE;
 
--- 3. ENSURE PROFILE TABLE EXISTS AND HAS ALL COLUMNS
+-- 3. ENSURE PROFILE TABLE EXISTS
 CREATE TABLE IF NOT EXISTS public.user_profile (
   id uuid REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   email text,
   role text DEFAULT 'user',
-  name text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
 
--- ADD MISSING COLUMNS IF THEY DON'T EXIST (Idempotent)
+-- ADD ALL REQUIRED COLUMNS IF MISSING
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS name text;
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS zip_code text;
@@ -294,7 +293,7 @@ WITH CHECK (auth.uid() = user_id);
             <Card className="max-w-2xl mx-auto border-t-4 border-t-blue-500">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-lg text-earth-900 dark:text-earth-100 flex items-center gap-2">
-                        <Terminal size={20} className="text-blue-500" /> Backend Setup (Fix Errors)
+                        <Terminal size={20} className="text-blue-500" /> Backend Setup (Fix 400 Errors)
                     </h3>
                     <Button size="sm" variant="ghost" onClick={() => setShowSql(!showSql)}>
                         {showSql ? 'Hide SQL' : 'Show SQL'}
@@ -302,7 +301,7 @@ WITH CHECK (auth.uid() = user_id);
                 </div>
                 
                 <p className="text-sm text-earth-600 dark:text-stone-300 mb-4">
-                    If you see <strong>Database error</strong> or <strong>400 Bad Request</strong>, run this script in Supabase SQL Editor.
+                    If you see <strong>Database error</strong> or <strong>400 Bad Request</strong>, it means your Supabase schema is missing the `name` or `phone` columns. Run this in Supabase SQL Editor.
                 </p>
 
                 {showSql && (
