@@ -1,44 +1,52 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 export const App = () => {
+  const [time, setTime] = useState(new Date().toLocaleTimeString());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
-    <div style={{ 
-      display: 'flex', 
+    <div style={{
+      display: 'flex',
       flexDirection: 'column',
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '100vh', 
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100vh',
       width: '100vw',
-      backgroundColor: '#f0fdf4', // leaf-50
-      color: '#14532d', // leaf-900
-      fontFamily: 'system-ui, -apple-system, sans-serif'
+      backgroundColor: '#059669', // Bright emerald green
+      color: 'white',
+      fontFamily: 'sans-serif'
     }}>
-      <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🌱</div>
-      <h1 style={{ fontSize: '3rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Hello World</h1>
-      <p style={{ fontSize: '1.5rem', margin: '0 0 2rem 0', opacity: 0.9 }}>Homestead Hub is connected.</p>
-      
-      <div style={{ 
-        padding: '2rem', 
-        backgroundColor: 'white', 
-        borderRadius: '16px', 
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-        maxWidth: '400px',
-        width: '90%',
+      <div style={{
+        backgroundColor: 'white',
+        color: '#059669',
+        padding: '2rem',
+        borderRadius: '1rem',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
         textAlign: 'center'
       }}>
-        <p style={{ marginBottom: '1.5rem', color: '#4b5563', lineHeight: '1.5' }}>
-          The application is actively running from <code>src/App.tsx</code>.
+        <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: '0 0 1rem 0' }}>
+          Hello World
+        </h1>
+        <p style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>
+          Homestead Hub is connected.
         </p>
         <div style={{ 
-          fontSize: '0.875rem', 
-          color: '#9ca3af', 
-          borderTop: '1px solid #e5e7eb', 
-          paddingTop: '1rem',
-          fontFamily: 'monospace'
+          marginTop: '1rem', 
+          padding: '0.5rem', 
+          backgroundColor: '#ecfdf5', 
+          borderRadius: '0.5rem',
+          fontFamily: 'monospace' 
         }}>
-          Build Time Check: {new Date().toLocaleTimeString()}
+          Current Time: {time}
         </div>
+        <p style={{ marginTop: '1rem', fontSize: '0.8rem', opacity: 0.8 }}>
+          Serving from src/App.tsx
+        </p>
       </div>
     </div>
   );
