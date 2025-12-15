@@ -1,9 +1,36 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Homestead Hub</title>
+    
+    <!-- Early Error Handler -->
+    <script>
+      window.onerror = function(msg, src, line, col, error) {
+        // Don't override if React catches it later, but log it
+        console.error("Global Catch:", msg, error);
+        // If body is empty after 1 second, show error
+        setTimeout(() => {
+            const root = document.getElementById('root');
+            if (root && root.innerHTML === '') {
+                document.body.innerHTML = `
+                    <div style="font-family:sans-serif; padding:2rem; text-align:center; color:#333; background:#fef2f2; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                        <h2 style="color:#dc2626;">Application Failed to Initialize</h2>
+                        <p>We encountered a problem loading the application resources.</p>
+                        <div style="background:#fff; padding:1rem; border-radius:8px; margin:1rem 0; text-align:left; font-family:monospace; font-size:12px; max-width:90%; overflow:auto; border:1px solid #ddd;">
+                            ${msg}<br/>
+                            <small>${src}:${line}</small>
+                        </div>
+                        <button onclick="localStorage.clear();window.location.reload()" style="background:#dc2626; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">Factory Reset</button>
+                    </div>
+                `;
+            }
+        }, 3000);
+      };
+    </script>
+
     <!-- Fonts: Merriweather (Serif headers) and Lato (Humanist Sans body) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -71,11 +98,13 @@
     </script>
     <script>
         // Check for saved theme or system preference
-        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark')
-        } else {
-            document.documentElement.classList.remove('dark')
-        }
+        try {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark')
+            } else {
+                document.documentElement.classList.remove('dark')
+            }
+        } catch(e) { console.log('Theme init error', e) }
     </script>
     <style>
       /* Custom Scrollbar for a cleaner look */

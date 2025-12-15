@@ -2,10 +2,11 @@
 import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
-import './index.css'; 
+// import './index.css'; // REMOVED: File does not exist and causes blank screen crash
 
 // Global Error Handler for non-React errors (e.g. SyntaxError, Import Failure)
 window.onerror = function(message, source, lineno, colno, error) {
+    console.error("Global Error Caught:", message, error);
     const root = document.getElementById('root');
     // Only override if React hasn't rendered anything yet (still blank)
     if (root && (!root.innerHTML || root.innerHTML === '')) {
@@ -121,5 +122,5 @@ if (rootElement) {
       </React.StrictMode>
     );
 } else {
-    document.body.innerHTML = '<h1>Root element not found</h1>';
+    document.body.innerHTML = '<div style="padding: 2rem; color: red;"><h1>Critical Error: Root element not found</h1></div>';
 }

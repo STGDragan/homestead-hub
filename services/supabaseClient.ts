@@ -2,17 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // --- CONFIGURATION STRATEGY ---
-// 
-// 1. PROTOTYPE MODE (Current):
-//    We use `localStorage` to persist your API Key so the AI doesn't overwrite it 
-//    every time it regenerates this file. You configure this via the "Connection" button in the UI.
-//
-// 2. PRODUCTION MODE (Deployment):
-//    When you deploy to Vercel/Netlify, you should use Environment Variables.
-//    Uncomment the lines below and delete the localStorage logic.
-//
-//    const targetUrl = import.meta.env.VITE_SUPABASE_URL;
-//    const targetKey = import.meta.env.VITE_SUPABASE_KEY;
+// 1. PROTOTYPE MODE: Persistent localStorage key.
+// 2. PRODUCTION MODE: Env vars.
 
 const HARDCODED_URL = 'https://psrofmaojlttfyrsarrc.supabase.co'; 
 const HARDCODED_KEY = 'INSERT_YOUR_ANON_KEY_HERE'; 
@@ -20,14 +11,22 @@ const HARDCODED_KEY = 'INSERT_YOUR_ANON_KEY_HERE';
 // --------------------------------
 
 // 1. Try to get config from Browser Storage (Persistent across AI edits)
-const storedUrl = typeof window !== 'undefined' ? localStorage.getItem('homestead_supabase_url') : null;
-const storedKey = typeof window !== 'undefined' ? localStorage.getItem('homestead_supabase_key') : null;
+let storedUrl = null;
+let storedKey = null;
+
+try {
+    if (typeof window !== 'undefined') {
+        storedUrl = localStorage.getItem('homestead_supabase_url');
+        storedKey = localStorage.getItem('homestead_supabase_key');
+    }
+} catch (e) {
+    console.warn("LocalStorage access denied or unavailable.");
+}
 
 // 2. Helper to clean strings
 const clean = (str: string | null | undefined) => (str || '').trim().replace(/\/$/, '');
 
 // 3. Determine final credentials (Storage > Hardcoded)
-// In a real app, `import.meta.env.VITE_SUPABASE_URL` would take precedence here.
 const targetUrl = clean(storedUrl || HARDCODED_URL);
 const targetKey = clean(storedKey || HARDCODED_KEY);
 
@@ -49,7 +48,8 @@ if (isConfigured) {
             auth: {
                 persistSession: true,
                 autoRefreshToken: true,
-                detectSessionInUrl: false
+                detectSessionInUrl: false,
+                storage: typeof window !== 'undefined' ? window.localStorage : undefined
             }
         });
     } catch (e) {
@@ -67,14 +67,20 @@ export const isSupabaseConfigured = isConfigured;
 
 // Helper to save config from UI
 export const saveConnectionConfig = (url: string, key: string) => {
-    localStorage.setItem('homestead_supabase_url', url);
-    localStorage.setItem('homestead_supabase_key', key);
-    window.location.reload();
+    try {
+        localStorage.setItem('homestead_supabase_url', url);
+        localStorage.setItem('homestead_supabase_key', key);
+        window.location.reload();
+    } catch(e) {
+        alert("Cannot save config: Storage access denied.");
+    }
 };
 
 // Helper to reset
 export const resetConnectionConfig = () => {
-    localStorage.removeItem('homestead_supabase_url');
-    localStorage.removeItem('homestead_supabase_key');
-    window.location.reload();
+    try {
+        localStorage.removeItem('homestead_supabase_url');
+        localStorage.removeItem('homestead_supabase_key');
+        window.location.reload();
+    } catch(e) {}
 };

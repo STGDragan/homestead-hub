@@ -2,7 +2,7 @@
 import { BaseEntity, SyncQueueItem } from '../types';
 
 const DB_NAME = "homestead_db";
-const DB_VERSION = 35; // Bumped to add system_config
+const DB_VERSION = 36; // Bumped to force store creation if missed
 
 class DBService {
   private dbPromise: Promise<IDBDatabase>;
@@ -52,7 +52,7 @@ class DBService {
             'help_articles', 'plant_discussions',
             'yard_items', 'yard_settings',
             'system_plants', 'system_animals',
-            'system_config' // New store for persistent app settings (keys/urls)
+            'system_config'
         ];
 
         stores.forEach(name => {
@@ -149,7 +149,6 @@ class DBService {
   async put<T extends { id: string }>(storeName: string, item: T, source?: 'sync'): Promise<void> {
     const db = await this.dbPromise;
     return new Promise((resolve, reject) => {
-      // Don't sync system_config changes to the queue
       const stores = [storeName];
       if (source !== 'sync' && storeName !== 'system_config') stores.push('sync_queue');
 
@@ -212,10 +211,6 @@ class DBService {
   async clearDatabase(): Promise<void> {
       const db = await this.dbPromise;
       
-      // We want to clear everything EXCEPT system_config if possible
-      // But standard clear deletes DB. 
-      // Strategy: Read config -> Delete DB -> Re-init -> Write config
-      
       let savedConfig = null;
       try {
           const tx = db.transaction('system_config', 'readonly');
@@ -225,7 +220,7 @@ class DBService {
               req.onsuccess = () => { savedConfig = req.result; r(true); };
               req.onerror = () => r(false);
           });
-      } catch(e) { /* ignore if store missing */ }
+      } catch(e) { /* ignore */ }
 
       db.close();
       
@@ -233,12 +228,9 @@ class DBService {
           const req = indexedDB.deleteDatabase(DB_NAME);
           req.onsuccess = () => resolve(true);
           req.onerror = () => reject(req.error);
-          req.onblocked = () => console.warn("Delete blocked");
       });
 
-      // Re-open (triggering upgrade/create) and restore config
       if (savedConfig) {
-          // Allow time for DB delete to finalize
           setTimeout(async () => {
              const newDbService = new DBService();
              await newDbService.put('system_config', savedConfig);
