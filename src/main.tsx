@@ -1,19 +1,17 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { HomesteadApp } from './HomesteadApp';
+import { App } from './App';
 import './index.css';
 
-console.log('BOOTSTRAPPING HOMESTEAD APP v2');
+console.log('Homestead Hub: Main Mounted');
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <React.StrictMode>
-          <HomesteadApp />
+          <App />
       </React.StrictMode>
     );
-} else {
-    console.error("Root element not found!");
 }
