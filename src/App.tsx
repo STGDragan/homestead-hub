@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -35,13 +34,13 @@ import { TreeDetail } from './pages/Orchard/TreeDetail';
 import { ApiaryDashboard } from './pages/Beekeeping/ApiaryDashboard';
 import { HiveDetail } from './pages/Beekeeping/HiveDetail';
 import { PartnerPortal } from './pages/Partner/PartnerPortal';
+import { RecipeDashboard } from './pages/Recipes/RecipeDashboard';
+import { RecipeDetail } from './pages/Recipes/RecipeDetail';
 import { AuthModal } from './components/auth/AuthModal';
 import { RoleGuard } from './components/auth/RoleGuard';
 import { authService } from './services/auth';
 import { subscriptionService } from './services/subscriptionService';
 import { libraryService } from './services/libraryService';
-import { RecipeDashboard } from './pages/Recipes/RecipeDashboard';
-import { RecipeDetail } from './pages/Recipes/RecipeDetail';
 
 export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -65,51 +64,28 @@ export const App: React.FC = () => {
 
     const initApp = async () => {
       try {
-        console.log("Homestead Hub: Starting Initialization...");
-        
-        // Initial checks
         await checkAuth();
-
-        // Load critical data in background
-        Promise.all([
-            subscriptionService.initializePlans().catch(e => console.warn('Plan Init Failed', e)),
-            libraryService.initSystemPlants().catch(e => console.warn('Plant Init Failed', e)),
-            libraryService.initSystemAnimals().catch(e => console.warn('Animal Init Failed', e)),
-        ]).finally(() => {
-             console.log("Homestead Hub: Services Initialized");
-        });
-
+        // Fire and forget initializers
+        subscriptionService.initializePlans().catch(console.warn);
+        libraryService.initSystemPlants().catch(console.warn);
+        libraryService.initSystemAnimals().catch(console.warn);
       } catch (e) {
-        console.error("Critical App Init Failure:", e);
+        console.error("App Init Failure:", e);
       } finally {
         setLoading(false);
       }
     };
 
-    // Safety Timeout: Force app to load after 3 seconds even if services are slow
-    const timeoutId = setTimeout(() => {
-        if (loading) {
-            console.warn("Forcing App Load due to timeout");
-            setLoading(false);
-        }
-    }, 3000);
-
     initApp();
-
-    return () => clearTimeout(timeoutId);
   }, []);
 
-  // Auth Listener
   useEffect(() => {
     const handleAuthChange = async () => {
         setAuthKey(prev => prev + 1);
         await checkAuth();
     };
     window.addEventListener('auth-change', handleAuthChange);
-    
-    return () => {
-        window.removeEventListener('auth-change', handleAuthChange);
-    };
+    return () => window.removeEventListener('auth-change', handleAuthChange);
   }, []);
 
   const handleLoginSuccess = () => {
@@ -120,8 +96,8 @@ export const App: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-earth-100 text-earth-600 dark:bg-night-950 dark:text-night-400">
         <div className="animate-pulse flex flex-col items-center">
-           <span className="text-3xl font-serif font-bold mb-2 text-green-700">Homestead Hub</span>
-           <span className="text-sm">Loading your farm...</span>
+           <span className="text-3xl font-serif font-bold mb-2">Homestead Hub</span>
+           <span className="text-sm">Loading...</span>
         </div>
       </div>
     );
@@ -145,21 +121,16 @@ export const App: React.FC = () => {
       <Layout key={authKey}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          
           <Route path="/garden" element={<GardenDashboard />} />
           <Route path="/garden/bed/:id" element={<GardenBedDetail />} />
           <Route path="/garden/layout/:id" element={<GardenLayoutTool />} />
           <Route path="/seeds" element={<SeedDashboard />} />
-          
           <Route path="/library" element={<PlantCatalog />} />
           <Route path="/library/plant/:id" element={<PlantLibraryDetail />} />
-
           <Route path="/orchard" element={<OrchardDashboard />} />
           <Route path="/orchard/tree/:id" element={<TreeDetail />} />
-
           <Route path="/apiary" element={<ApiaryDashboard />} />
           <Route path="/apiary/hive/:id" element={<HiveDetail />} />
-
           <Route path="/animals" element={<LivestockDashboard />} />
           <Route path="/animals/list" element={<AnimalList />} />
           <Route path="/animals/profile/:id" element={<AnimalProfile />} />
@@ -167,7 +138,6 @@ export const App: React.FC = () => {
           <Route path="/animals/offspring" element={<OffspringList />} />
           <Route path="/animals/offspring/:id" element={<OffspringDetail />} />
           <Route path="/animals/breeding" element={<BreedingDashboard />} />
-          
           <Route path="/tasks" element={<TasksDashboard />} />
           <Route path="/marketplace" element={<MarketplaceDashboard />} />
           <Route path="/finances" element={<FinanceDashboard />} />
@@ -178,39 +148,13 @@ export const App: React.FC = () => {
           <Route path="/help" element={<HelpCenter />} />
           <Route path="/reports" element={<ReportsDashboard />} />
           <Route path="/messages" element={<MessagingDashboard />} />
-          
           <Route path="/recipes" element={<RecipeDashboard />} />
           <Route path="/recipes/:id" element={<RecipeDetail />} />
-          
           <Route path="/sync" element={<SyncDashboard />} />
-          
           <Route path="/partner" element={<PartnerPortal />} />
-          
-          <Route 
-            path="/admin" 
-            element={
-              <RoleGuard allowedRoles={['admin', 'moderator']}>
-                <AdminDashboard />
-              </RoleGuard>
-            } 
-          />
-          <Route 
-            path="/admin/docs" 
-            element={
-              <RoleGuard allowedRoles={['admin', 'moderator']}>
-                <AdminDocs />
-              </RoleGuard>
-            } 
-          />
-          <Route 
-            path="/admin/subscriptions" 
-            element={
-              <RoleGuard allowedRoles={['admin']}>
-                <SubscriptionAdmin />
-              </RoleGuard>
-            } 
-          />
-
+          <Route path="/admin" element={<RoleGuard allowedRoles={['admin', 'moderator']}><AdminDashboard /></RoleGuard>} />
+          <Route path="/admin/docs" element={<RoleGuard allowedRoles={['admin', 'moderator']}><AdminDocs /></RoleGuard>} />
+          <Route path="/admin/subscriptions" element={<RoleGuard allowedRoles={['admin']}><SubscriptionAdmin /></RoleGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
