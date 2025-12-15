@@ -1,7 +1,8 @@
+
 import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
-import './index.css'; // CRITICAL: This imports Tailwind
+import './index.css';
 
 // Global Error Handler for non-React errors
 window.onerror = function(message, source, lineno, colno, error) {

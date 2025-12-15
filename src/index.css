@@ -1,8 +1,8 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Base Reset & fallback for when Tailwind hasn't loaded yet */
 :root {
   --bg-color: #f5f0eb;
   --text-color: #5c412f;
@@ -16,6 +16,15 @@ body {
   font-family: 'Lato', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Fallback Classes */
+.fixed { position: fixed; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+.z-50 { z-index: 50; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.bg-black\/60 { background-color: rgba(0, 0, 0, 0.6); }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
@@ -36,7 +45,6 @@ body {
   background: #bfa082; 
 }
 
-/* Utility to hide scrollbar but keep functionality */
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }
