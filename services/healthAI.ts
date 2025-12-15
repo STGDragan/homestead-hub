@@ -2,7 +2,6 @@
 import { HealthRecord, HealthSubjectType, DiagnosisResult } from '../types';
 import { MOCK_DIAGNOSES } from '../constants';
 import { GoogleGenAI, Type } from "@google/genai";
-import { integrationService } from './integrationService';
 
 // Helper to convert Blob to Base64
 const fileToGenerativePart = async (file: Blob): Promise<string> => {
@@ -25,15 +24,15 @@ export const healthAIService = {
    */
   async analyzePhoto(blob: Blob, type: HealthSubjectType): Promise<DiagnosisResult> {
     try {
-        // Fetch API Key from Admin Settings
-        const apiKey = await integrationService.getApiKey('google_gemini');
+        // Strict adherence: Use process.env.API_KEY directly
+        const apiKey = process.env.API_KEY;
         
         if (!apiKey) {
-            console.warn("No 'google_gemini' integration found active. Using mock health data.");
+            console.warn("No API_KEY found. Using mock health data.");
             return this.runMockAnalysis(type);
         }
 
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const base64Data = await fileToGenerativePart(blob);
 
         const prompt = `

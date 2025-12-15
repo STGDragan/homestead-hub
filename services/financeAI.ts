@@ -1,7 +1,6 @@
 
 import { Expense, HerdGroup, GardenBed, ExpenseCategory } from '../types';
 import { GoogleGenAI, Type } from "@google/genai";
-import { integrationService } from './integrationService';
 
 // Helper to convert Blob to Base64
 const fileToGenerativePart = async (file: Blob): Promise<string> => {
@@ -27,16 +26,16 @@ export const financeAI = {
     beds: GardenBed[]
   ): Promise<Partial<Expense> & { confidence: number }> {
     
-    // Fetch API Key from Admin Settings
-    const apiKey = await integrationService.getApiKey('google_gemini');
+    // Strict adherence: Use process.env.API_KEY directly
+    const apiKey = process.env.API_KEY;
 
     if (!apiKey) {
-        console.warn("No 'google_gemini' integration found active. Using mock OCR.");
+        console.warn("No API_KEY found. Using mock OCR.");
         return this.runMockOCR(herds, beds);
     }
 
     try {
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const base64Data = await fileToGenerativePart(blob);
 
         // Construct context for the AI to match allocations
